@@ -1,8 +1,9 @@
-# HUD Frontier/RSI RL Environments Hackathon — Project Plan & Discussion
+# FirmBench — HUD Frontier/RSI RL Environments Hackathon
 
 > Working doc capturing the full brainstorm + final plan for the HUD (W25) x YC
-> RSI hackathon. Project: a **verifiable RL environment for agentic collaboration**
-> ("collaborative agent-firm"), delivered as an environment + eval/leaderboard.
+> RSI hackathon. Project: a **verifiable RL environment for agentic collaboration** —
+> a team of agent-execs runs a **SaaS startup** (artifact-hybrid), delivered as an
+> environment + eval/leaderboard.
 
 ---
 
@@ -16,14 +17,13 @@
   **agentic collaboration**, **autonomous businesses**.
 - Format: 24h build. Prizes incl. guaranteed YC interview, robo-dog, Mac Minis, etc.
 - Sponsors incl. HUD (env platform), Modal (GPU/sandboxes), Fireworks (RFT on open
-  models), DeepMind, Daytona, Anthropic, Exa, Hillclimb, Protege, Antim Labs (physical AI sim).
+  models), DeepMind, Daytona, Anthropic, Exa, Hillclimb, Protege, Antim Labs.
 
 ---
 
-## 1. Background research: TheAgentCompany (the jumping-off point)
+## 1. Background research: TheAgentCompany (jumping-off point)
 
-Studied `TheAgentCompany` (CMU, WebArena team) to understand what a good
-task/eval environment looks like.
+Studied `TheAgentCompany` (CMU, WebArena team) to understand a good task/eval env.
 
 ### What it is
 - A **task-completion benchmark**, not a business simulation. The "company" is a
@@ -33,30 +33,24 @@ task/eval environment looks like.
 - Roles: SDE (69), HR (29), PM (28), Admin (15), DS (14), Finance (12), misc (~8).
 - 41 tasks involve LLM-backed NPC coworkers (RocketChat, built on Sotopia).
 
-### How it evaluates (the key learnings)
+### How it evaluates (key learnings)
 - **Result/execution-based grading**: an encrypted `evaluator.py` inspects the
   *actual final state* of services/files after the agent finishes. Not step-matching.
 - **Weighted checkpoints with partial credit**: `grade_checkpoints()` returns a
   `Result` of `Checkpoint(total, result)` objects → you see *how far* an agent got.
-- Grading mechanisms across tasks:
-  - Deterministic state checks (RocketChat 80, GitLab 31, ownCloud 25, Plane 13)
-  - Execution-based (run the DB/server, assert exact values)
-  - LLM-as-judge (48 tasks; `evaluate_with_llm(content, predicate)` → yes/no; 6 use vision)
-  - Trajectory-based (last resort; all 175 accept a trajectory file)
+- Mechanisms: deterministic state checks (RocketChat 80, GitLab 31, ownCloud 25,
+  Plane 13), execution-based, LLM-as-judge (48; 6 vision), trajectory-based (last resort).
 - Scoring strategies: default sum; `bonus_for_completing_final`; `bonus_for_completing_any`.
-- Anti-cheat: evaluator ships encrypted (Fernet), decrypted at grade time with
-  `DECRYPTION_KEY='theagentcompany is all you need'`. `/utils` off-limits to agent.
-- Needs an **environment LLM** (separate from the agent under test) to power NPCs +
-  LLM judges. Baseline used Claude 3.5 Sonnet. OpenHands baseline capped at
-  100 iterations / $4 per task.
+- Anti-cheat: evaluator ships encrypted (Fernet), decrypted at grade time. `/utils`
+  off-limits to agent. Needs a separate **environment LLM** for NPCs + judges.
 
-### Key takeaway / limitation
-- It measures **"can an agent be a reliable employee on bounded, assigned tasks?"**
-- It does **NOT** measure: business KPIs (revenue/profit), long-horizon/cumulative
-  state (tasks are isolated, services reset between them), prioritization, or true
-  multi-agent collaboration (NPCs are scripted, not collaborators).
-- HUD's platform structures environments almost identically (task spec + evaluator +
-  sandbox), so all of this knowledge transfers directly.
+### Takeaway / limitation
+- Measures **"can an agent be a reliable employee on bounded, assigned tasks?"**
+- Does NOT measure business KPIs, long-horizon/cumulative state (tasks are isolated,
+  services reset between them), prioritization, or true multi-agent collaboration
+  (NPCs are scripted, not collaborators).
+- HUD's platform structures environments almost identically (task + evaluator +
+  sandbox), so this knowledge transfers directly.
 
 ---
 
@@ -66,130 +60,138 @@ task/eval environment looks like.
 A winning RL env = **cheap, automatic, ground-truth reward** + **tasks frontier
 models partially fail** + **buildable/resettable in 24h**.
 
-### Why "autonomous business" felt off at first
-Real business success is long-horizon, noisy, and not automatically verifiable —
-you can't cleanly compute "did this agent run a good company." **Fix: put a
-deterministic simulator underneath it** so profit is computable and resettable.
+### Why naive "autonomous business" fails
+Real business success is long-horizon, noisy, not automatically verifiable.
+**Fix: put a deterministic simulator underneath it** so outcomes are computable.
 
-### Candidate directions considered
-1. **Autonomous business sim** (chosen seed) — simulator-backed economic env;
-   reward = profit/regret over a long horizon. Tests multi-step planning.
-2. **Autonomous ML research (RSI)** — agent improves ML code to max a held-out
-   metric; reward = the score. Most on-theme (RSI). Prior art: MLE-bench, RE-Bench.
-3. **Multi-agent collaboration** — multiple real agents coordinate to ship a
-   deliverable; reward = tests pass. Fixes TheAgentCompany's single-agent gap.
-4. **Verifiable finance/ops env** — financial modeling / OR / scheduling with exact
-   ground-truth answers. Underexplored, trivially gradeable.
+### Directions considered
+1. Autonomous business sim (chosen) — simulator-backed; reward = profit/valuation.
+2. Autonomous ML research (RSI) — improve ML code to max a metric. Most on-theme.
+3. Multi-agent collaboration — agents coordinate to ship; reward = outcome.
+4. Verifiable finance/ops — modeling / OR / scheduling with exact answers.
+
+We merged #1 + #3: a **collaborative agent-firm**.
 
 ---
 
-## 3. Vending-Bench reference (resolving the "luck" question)
+## 3. Vending-Bench reference (the "luck" question)
 
-- **Vending-Bench** (Andon Labs, early 2025) is a **simulation** — a single LLM
-  agent runs a virtual vending-machine business (search wholesalers, email
-  suppliers, order inventory, set prices, pay daily fee). Sales come from a demand
-  model; supplier/email responses from a sub-LLM. Metric = **net worth** over a very
-  long horizon. Distinct from **Project Vend** (Andon + Anthropic), the *real*
-  physical-fridge experiment with the famous meltdowns.
-- Headline finding: models do sub-tasks fine but **collapse over long horizons**
-  (lose track of cash/inventory, stop ordering, spiral). Huge run-to-run variance.
-- Capability measured: **long-horizon coherence** (state-tracking, memory,
-  consistent strategy, error recovery) — NOT one-shot reasoning.
+- **Vending-Bench** (Andon Labs, 2025) is a **simulation** — single LLM agent runs a
+  virtual vending business; sales from a demand model, suppliers from a sub-LLM;
+  metric = net worth over a long horizon. Distinct from **Project Vend** (Andon +
+  Anthropic), the real physical-fridge experiment with the famous meltdowns.
+- Finding: models do sub-tasks fine but **collapse over long horizons** (lose track of
+  cash/inventory, stop ordering, spiral). Huge variance.
+- Capability measured: **long-horizon coherence**, not one-shot reasoning.
 
-### "Isn't it just luck?" — how to make reward reflect skill
-1. **Demand is learnable, not unknowable** — agent sees its own sales each step, so
-   a capable agent experiments and infers the demand curve. That *is* the skill.
-2. **Long horizon** averages out single-event luck.
-3. **Multiple runs** → report distribution, not single numbers.
-4. Honest caveat: Vending-Bench variance is *still huge* — its biggest weakness, and
-   the thing our project improves on.
-
-### The fix that turns a "casino" into a capability measure
-- **Reward = regret vs. optimal**: since we own the simulator, compute the best
-  achievable profit *given the demand that actually occurred*; grade on
-  `optimal − agent`. Luck cancels. **Single most important design decision.**
-- **Paired seeds (common random numbers)**: run every model on identical demand
-  realizations → compare skill, not luck draws.
-- **Average over many seeds** for variance reduction.
-
-### Is Vending-Bench multi-agent?
-No — it's single-agent (the "world" is scripted/sub-LLM, not a collaborator).
-But a business sim naturally **extends** into multi-agent: competition (rival firms)
-or collaboration (a firm of specialized agents).
+### Making reward reflect skill, not luck
+- Demand is *learnable* (agent sees its sales) → experimentation is the skill.
+- Long horizon + multiple runs average out luck.
+- **Regret vs. optimal** (own the sim → compute best achievable given realized demand)
+  cancels luck. **Paired seeds (common random numbers)** compare skill on identical
+  worlds. (NOTE: regret guarantee weakens under artifact-hybrid — see §4.)
 
 ---
 
-## 4. FINAL PLAN — Collaborative Agent-Firm environment
+## 4. FINAL PLAN — FirmBench: collaborative agent-firm running a SaaS startup
 
-**Decisions:** scope = *collaborative agent-firm*; deliverable = *env + eval/leaderboard*
-(no training run required for the demo).
+**Decisions:** business = **SaaS startup**; fidelity = **artifact-hybrid throughout**;
+deliverable = **env + eval/leaderboard** (no training run needed for the demo).
+
+### Why SaaS (vs vending / DTC)
+- Vending = just *operations* (buying/pricing), not a real business.
+- SaaS is the most realistic + relatable for a YC/HUD audience, and artifacts span the
+  whole stack (specs, code, copy, pricing, investor updates) → "agents doing real work"
+  everywhere. Engine is generic, so DTC brand is a later swap with no rewrite.
+
+### Honest tradeoff of artifact-hybrid
+Artifact space is open-ended → exact **regret-vs-optimal stops being computable**. We
+keep the eval clean by anchoring the headline reward on a **hard deterministic number —
+firm valuation** — and treating artifact-quality scores as *inputs* to the sim + as
+interpretable sub-metrics, NOT as the reward itself. Headline reframed from "regret" →
+**valuation leaderboard + coordination tax**.
 
 ### Pitch (one-liner)
 > TheAgentCompany showed a *single* agent can do isolated tasks. The open question is
-> whether a *team* of agents can run an operation **together**. We built the first
-> verifiable RL environment for agentic collaboration with a **computable optimal**,
-> so coordination quality becomes a clean, low-variance reward — and we measure the
-> **"coordination tax"** frontier models pay versus a perfectly-informed planner.
+> whether a *team* of agents can run an operation **together**. FirmBench is a
+> verifiable RL environment where an agent C-suite runs a SaaS startup — they make
+> strategic calls AND produce real work artifacts — and we measure the **coordination
+> tax** they pay versus a perfectly-informed planner.
 
 ### Capability measured
-**Information-sharing and joint planning under partial observability** — precise,
-verifiable, and exactly what TheAgentCompany's scripted-NPC setup can't test.
+Multi-agent **strategic coordination + coherent cross-functional execution** — do the
+CTO's roadmap, CMO's campaign, and CFO's pricing actually align?
 
-### The simulator (own it, keep it small)
-- Retail/vending micro-business, ~30 days, 3 products.
-- Each day: `demand = f(price, popularity, seed-fixed noise)`;
-  `sales = min(demand, inventory)`;
-  `P&L = revenue − COGS − holding cost − order cost − daily fee`.
-- Deterministic given a seed, resettable, cheap (pure Python, no LLM in the engine).
+### The collaborating agents (C-suite, partial observability)
+- **CEO** — strategy, capital allocation, writes investor update; sees board pressure + runway.
+- **CTO** — picks features from backlog, allocates eng capacity, writes feature spec/PRD;
+  knows build costs + tech debt.
+- **CMO** — sets channel marketing budget, writes ad/landing copy; knows channel CACs + brand.
+- **CFO** — sets pricing tiers, manages burn/fundraising, writes financial plan; knows unit economics.
 
-### The firm = 3 specialized agents with deliberately split observability
-(If any one agent saw everything, coordination wouldn't be tested.)
-- **Buyer** — sees supplier catalog, prices, lead times. NOT demand signals.
-- **Pricer** — sees demand signals / past sales / competitor prices. NOT inventory/cash.
-- **Ops** — sees current inventory + cash. NOT catalog or demand.
-- They **must communicate** over a shared append-only message log. Bad coordination
-  → over-ordering, stockouts, pricing for stock that never arrives. Firm profit
-  reflects coordination quality.
+Coordinate via a shared company channel + a structured monthly planning doc. The
+observability split forces info-sharing.
 
-### Reward (what wins)
-- **Regret = optimal_profit − firm_profit**, on **paired seeds**. (If exact optimal
-  is hard, use a centralized omniscient planner as reference — honest and sufficient.)
-- **Coordination tax** (headline chart) =
-  `omniscient_single_agent_profit − multi_agent_firm_profit`.
-  How much the firm loses purely to the information boundary. This number *is* the result.
+### The deterministic engine
+Latent state stocks: `product_quality`, `brand_equity`, `users`, `MRR`, `cash`,
+`team_size`, `tech_debt`. Monthly tick:
+- Eng: features built (capacity − tech_debt) → ↑ product_quality, may ↑ tech_debt.
+- Marketing: spend × channel_response × (1 + brand_equity) × copy_quality_score → new users.
+- Brand: ↑ with sustained spend + product_quality + copy_quality; decays over time.
+- Churn: f(product_quality, price).
+- Revenue: users × conversion(price, brand) × ARPU(tier).
+- Cash: + revenue + raised − burn(team_size). Bankruptcy if cash < 0.
+- Valuation: ARR multiple adjusted for growth rate. Bankruptcy = 0/penalty.
 
-### Leaderboard axes
-Frontier models (Claude / GPT / Gemini / an open model) × team size ×
-communication protocol (free-form chat vs. structured handoffs).
+### Artifact-hybrid scoring (core mechanic)
+Each artifact gets a 0–1 LLM-rubric score that **multiplies** its sim lever:
+- feature spec quality → eng efficiency / quality gain
+- marketing copy quality → channel conversion multiplier
+- pricing / positioning → conversion
+- investor update quality → fundraise amount / terms
+Noise control: fixed rubric, average several judge samples, keep artifacts short
+(~a paragraph each). Valuation remains the deterministic anchor.
+
+### Eval / leaderboard (deliverable)
+- **Primary reward:** firm valuation at horizon (deterministic given decisions + artifact scores).
+- **Reference baselines:** omniscient single agent (no coordination boundary) →
+  **coordination tax**; heuristic policy with template artifacts → floor.
+- **Sub-metrics:** coordination tax, artifact-quality scores, survival rate, capital efficiency.
+- **Variance control:** multiple + paired seeds; report distributions.
+- **Leaderboard axes:** frontier models (Claude / GPT / Gemini / open) × team size ×
+  communication protocol (free-form chat vs structured handoffs).
 
 ### 24-hour schedule
 | Hours | Build |
 |-------|-------|
-| 0–4 | Sim core: deterministic engine, demand model, P&L, seeding + reference/optimal baseline (LP or small-state DP/brute force). |
-| 4–10 | Agent harness: 3 role agents, partial-obs views, shared message bus, round-robin turn loop. Wrap as a **HUD environment** (task spec + evaluator = profit/regret). |
-| 10–16 | Run frontier models on fixed seed sets; collect trajectories; compute regret + coordination tax; build leaderboard. |
-| 16–22 | Demo polish: leaderboard UI + replay viewer ("watch agents negotiate, then succeed or melt down"); failure-mode gallery. |
+| 0–5 | Sim engine: ~6 state vars, monthly tick, valuation function, seeding. |
+| 5–8 | Artifact rubric judges (LLM scorers, averaged). |
+| 8–14 | Agent harness: 4 role agents, partial-obs views, shared channel + planning doc, monthly turn loop. Wrap as a **HUD environment** (task spec + evaluator = valuation). |
+| 14–20 | Reference baselines (omniscient + heuristic), run frontier models, leaderboard + replay viewer. |
+| 20–22 | Demo polish: failure-mode gallery ("watch the C-suite misalign and run out of runway"). |
 | 22–24 | Slides + pitch. |
 
 ### Risks & mitigations
-- **True optimal is hard** → ship a strong *reference policy* (omniscient centralized
-  greedy/LP), report normalized score.
-- **Multi-agent orchestration is fiddly** → keep it simple: round-robin turns + one
-  append-only shared log. No fancy protocol.
-- **LLM cost/time** → short horizon (30 days), 3 products, cache calls, few seeds.
-- **Coordination not actually forced** → pressure-test the observability split early;
-  if a single agent can solve it, tighten the partition.
+- **Artifact-hybrid cost/latency/noise** → short horizon (12 months), caching, averaged
+  judges, short artifacts; fall back to hybrid-on-marketing-only (engine unchanged).
+- **Optimal undefined** → use omniscient + heuristic reference baselines, report
+  normalized score; headline = coordination tax + valuation, not regret.
+- **Multi-agent orchestration fiddly** → round-robin monthly turns + one append-only
+  shared log + a planning-doc template. No fancy protocol.
+- **Coordination not actually forced** → pressure-test the observability split early.
 
 ### Why it scores well
-Verifiable (computable regret) · novel (fills the exact TheAgentCompany gap) · great
-live demo (agents negotiating + coordination-tax chart) · clean stretch ("env is
-RFT-ready; next we fine-tune for coordination" — one config away, not needed for demo).
+Verifiable (valuation anchor) · realistic & novel (full-stack SaaS, agents writing real
+artifacts) · best-in-class collaboration story (agent C-suite) · great live demo
+(agents negotiating + coordination-tax chart) · RFT-ready stretch (one config from a
+fine-tuning run; not needed for the demo).
 
-### Name options
-**FirmBench**, **CoordTax**, **Boardroom**.
+### Name
+**FirmBench** (working name). Alternatives: CoordTax, Boardroom.
 
 ---
 
 ## 5. Immediate next step
-Scaffold the simulator core (the 0–4h block): deterministic engine + P&L + seedable
-demand model + omniscient reference baseline. Everything else hangs off it.
+Scaffold the simulator engine (the 0–5h block): deterministic monthly tick over the 6
+latent state stocks + valuation function + seeding, with stub hooks for artifact-quality
+multipliers. Everything else hangs off it.
