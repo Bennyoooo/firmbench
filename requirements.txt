@@ -1,0 +1,3 @@
+# sim.py needs nothing (pure stdlib).
+# agent.py (Phase 2 LLM harness) needs an OpenAI-compatible client for Fireworks:
+openai>=1.0

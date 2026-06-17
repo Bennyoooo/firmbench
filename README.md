@@ -43,4 +43,18 @@ Expected shape (means over seeds): **naive loses money << scripted experimenter 
 oracle** — i.e. the environment is learnable and specifically rewards experimentation,
 not spam or luck.
 
-Next: Phase 2 — single-agent LLM harness (tool-calling over `FirmEnv`) + leaderboard.
+- **[agent.py](./agent.py)** — Phase 2: single-agent LLM harness. Drives `FirmEnv` with
+  structured-JSON actions (robust across cheap open models) via the Fireworks
+  OpenAI-compatible API. Same `.reset()/.act()` interface as the policies, so it reuses
+  the runner + oracle. Falls back to the scripted baseline if no key is set (wiring check).
+
+Run the LLM agent (cheap Fireworks model):
+
+```bash
+pip install -r requirements.txt
+export FIREWORKS_API_KEY=...
+export FIREWORKS_MODEL=accounts/fireworks/models/llama-v3p1-8b-instruct   # optional
+python3 agent.py
+```
+
+Next: leaderboard over several models/seeds, then Phase 3 (NL artifact translators).
