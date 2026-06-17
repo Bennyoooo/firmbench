@@ -170,7 +170,34 @@ Design and validate this FIRST — it determines whether the env is learnable at
 
 ---
 
-## 12. One-line pitch
+## 12. Is this an RL environment? (formalization)
+
+Yes — a **partially-observable, multi-agent environment (Dec-POMDP)** with an outcome reward.
+
+- **State** `s`: hidden world (demography, `solves` mapping) + firm state (built features,
+  price, cash, history).
+- **Action** `a` (per agent, per round): Builder→build+spec, Marketer→copy+targeting,
+  Pricer→price+budget, Coordinator→plan. Structured/text actions (tool calls); joint
+  action = all roles.
+- **Observation** `o`: partial, role-specific + diagnostic campaign feedback (§6).
+- **Transition** `T`: deterministic funnel given seed; the LLM craft-translator is the
+  one stochastic piece (cache it for reproducibility).
+- **Reward** `r`: per-round profit (dense) + terminal valuation. This is the trainable signal.
+- **Episode**: ~12 rounds; **resettable** via seed.
+
+**Why it's RL-native (not a static benchmark):** success requires **explore→exploit of
+hidden latent structure** (the demand formula) — a structured POMDP/contextual-bandit.
+One-shot task benchmarks (e.g. TheAgentCompany) lack this.
+
+**Eval vs. training:** the scoped deliverable (env + leaderboard) is an RL environment
+*used as an eval*. It becomes a full RL training loop by wiring profit into RFT
+(e.g. GRPO on Fireworks) — the stretch goal. HUD wants both.
+
+**Trainability notes:** keep reward **dense** (per-round profit) and **fast/cheap/
+deterministic** (deterministic targeting + cached craft judge). MARL is harder to train;
+simplest path is one shared/centralized policy emitting all four role actions.
+
+## 13. One-line pitch
 > FirmBench drops a team of agents into a market whose demand structure is hidden in a
 > 10,000-user simulation. To make money they must *experiment* to discover what people
 > need, *build* it, *market* it to the right people, and *price* it right — and we
