@@ -227,7 +227,32 @@ policy (an experimentation strategy), not world-specific facts.
   Mitigate: deterministic targeting, craft is only one input (right feature+price+targeting
   still required to sell), robust rubric.
 
-## 14. One-line pitch
+## 14. Training loop (stretch) vs evaluation (deliverable)
+
+**Terminology:** *step* = one agent action; *episode/rollout* = one seeded world played
+to horizon (~12 rounds), reward = profit.
+
+**Evaluation / leaderboard (scoped deliverable — NO training):**
+run each frontier model on N **held-out seeds** (~20–50), average profit + regret +
+coordination tax. Pure inference. Cheap, low-risk. This is what we ship.
+
+**Training (stretch):** not just "re-seed 1000×" — it's re-seed **+ policy update**,
+interleaved. Standard GRPO-style loop:
+```
+repeat:
+  sample a world (fresh seed)            # domain randomization (§13)
+  run K rollouts of CURRENT policy (K=4–8) on it
+  reward = profit per rollout
+  push policy toward higher-profit rollouts (gradient update)
+```
+- K rollouts per world are needed to compute relative advantage.
+- ~1000 episodes shows a *learning signal*; strong policies need ~10k–1M+ rollouts.
+  Hackathon claim = "the curve bends," not "SOTA business agent."
+- Train **one shared policy** playing all 4 roles (avoid hard MARL).
+- Keep horizon short (8–12 rounds) — cost and credit-assignment scale with it.
+- Use a small open model (Fireworks RFT); frontier models are for the eval leaderboard.
+
+## 15. One-line pitch
 > FirmBench drops a team of agents into a market whose demand structure is hidden in a
 > 10,000-user simulation. To make money they must *experiment* to discover what people
 > need, *build* it, *market* it to the right people, and *price* it right — and we
