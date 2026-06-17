@@ -197,7 +197,37 @@ One-shot task benchmarks (e.g. TheAgentCompany) lack this.
 deterministic** (deterministic targeting + cached craft judge). MARL is harder to train;
 simplest path is one shared/centralized policy emitting all four role actions.
 
-## 13. One-line pitch
+## 13. What is being learned? (domain randomization — REQUIRED for training)
+
+**Trap:** if the hidden world is *fixed* across episodes, training just memorizes one
+answer key (build feature 7, target X, price $42) → overfitting, and the discovery
+mechanic becomes pointless. The user's instinct ("just fitting the hidden state") is
+correct *for a fixed world*.
+
+**Fix:** **randomize the hidden world every episode** (procedural generation — new pain
+distribution, new `solves` mapping, new wtp distribution per rollout). The agent then
+can't memorize a specific answer; to earn reward across many worlds it must learn the
+**meta-skill of discovery itself**. Eval uses **held-out randomized worlds** → the
+leaderboard measures generalization, not memorization.
+
+**Transferable behaviors reinforced (under randomization):**
+1. Efficient experimentation / active learning (campaigns chosen to maximize info).
+2. Explore→exploit budgeting (when to stop probing and scale, without bankruptcy).
+3. Belief updating from diagnostic feedback (near-Bayesian over observations).
+4. Cross-functional coordination (align build ↔ targeting ↔ price; share private info).
+5. Artifact craft that transfers (quality generalizes; targeting adapts to discovered demand).
+
+Net: training teaches **"running a data-driven business under uncertainty,"** a meta-
+policy (an experimentation strategy), not world-specific facts.
+
+**Honest caveats:**
+- *Transfer to real business is unproven* — claim "discovery + coordination under
+  uncertainty, measured by generalization to unseen markets," not "better at real companies."
+- *Reward-hacking the judge* — a policy may learn copy that games the craft-translator.
+  Mitigate: deterministic targeting, craft is only one input (right feature+price+targeting
+  still required to sell), robust rubric.
+
+## 14. One-line pitch
 > FirmBench drops a team of agents into a market whose demand structure is hidden in a
 > 10,000-user simulation. To make money they must *experiment* to discover what people
 > need, *build* it, *market* it to the right people, and *price* it right — and we
