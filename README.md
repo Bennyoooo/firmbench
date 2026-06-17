@@ -6,13 +6,13 @@ a business together, graded automatically by profit.
 
 ## Chosen design
 
-- **[PLAN-market-discovery.md](./PLAN-market-discovery.md)** — *Market-discovery firm.*
-  4 agents (Builder / Marketer / Pricer / Coordinator) must reverse-engineer a hidden
-  demand structure in a numeric 10,000-user population, then build + market + price the
-  right product. **The LLM judge is a translator, not a grader** — it turns artifacts
-  (ad copy, specs) into parameters that drive a deterministic market. **Reward = profit.**
-  Diagnostics (both computable because the world is numeric): *discovery efficiency*
-  (regret vs oracle) and *coordination tax*.
+- **[PLAN-market-discovery.md](./PLAN-market-discovery.md)** — *Market-discovery firm
+  (single-agent).* One agent must reverse-engineer a hidden demand structure in a numeric
+  user population (via experiments), then build + market + price the right product. **The
+  LLM judge is a translator, not a grader** — it turns artifacts (ad copy, specs) into
+  parameters that drive a deterministic market. **Reward = profit.** Primary diagnostic:
+  *discovery efficiency* (regret vs a computable oracle). Multi-agent + *coordination tax*
+  = future stretch.
 
 ## Earlier candidate (kept for reference)
 
@@ -24,3 +24,23 @@ a business together, graded automatically by profit.
 
 All versions share the same core machinery: a deterministic simulator + partial-
 observability agent roles + computable reference baselines.
+
+## Code
+
+- **[sim.py](./sim.py)** — Phase 1: the deterministic market-discovery simulation core
+  (pure stdlib, no deps). Contains `generate_world`, the gym-like `FirmEnv`
+  (`reset`/`step`, reward = round profit), an `OraclePolicy` reference, a `NaivePolicy`
+  floor, and a `ScriptedExperimenter` that probes demand → discovers the hidden
+  pain→feature mapping → exploits.
+
+Run the learnability check:
+
+```bash
+python3 sim.py
+```
+
+Expected shape (means over seeds): **naive loses money << scripted experimenter <=
+oracle** — i.e. the environment is learnable and specifically rewards experimentation,
+not spam or luck.
+
+Next: Phase 2 — single-agent LLM harness (tool-calling over `FirmEnv`) + leaderboard.
