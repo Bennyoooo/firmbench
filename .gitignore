@@ -4,5 +4,6 @@ __pycache__/
 venv/
 .env
 outputs/
+rft_out/
 *.log
 uv.lock
