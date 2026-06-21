@@ -57,4 +57,19 @@ export FIREWORKS_MODEL=accounts/fireworks/models/llama-v3p1-8b-instruct   # opti
 python3 agent.py
 ```
 
+- **[run.py](./run.py)** — Merged pipeline: verifier (secret held-out users + cheat
+  tripwires, ported from rl-experiments + autonomous-businesses-template), head-to-head
+  evaluation (all policies on the same held-out worlds), and REINFORCE training loop
+  (learns probe-vs-exploit from verifier reward).
+
+Run the full pipeline (eval baselines → train → re-eval):
+
+```bash
+python3 run.py
+```
+
+Expected: naive loses money + gets flagged; scripted earns well + 0 flags; RL trains
+and earns above naive; oracle sets the ceiling. The verifier catches erratic/dishonest
+policies via the tripwire.
+
 Next: leaderboard over several models/seeds, then Phase 3 (NL artifact translators).
