@@ -353,7 +353,7 @@ class FirmEnv:
         price_term = (user.wtp - self.price) / user.wtp
         return sigmoid(self.cfg.alpha * ff + self.cfg.beta * price_term - self.cfg.gamma)
 
-    def _run_campaign(self, target: set, spend: float):
+    def _run_campaign(self, target: set, spend: float, channel: int = 0, craft: float = 1.0):
         cfg = self.cfg
         target = set(target)
         # matching pool: users sharing >=1 targeted pain (deterministic order by idx)
@@ -372,7 +372,11 @@ class FirmEnv:
         for idx in reached:
             u = self.w.users[idx]
             resonance = len(target & u.pains) / len(u.pains)
-            p_try = resonance            # craft = 1.0 in the structured phase
+            # channel: the right channel converts at full weight, the wrong channel is
+            # downweighted (use_channels off -> 1.0, i.e. exactly v1).
+            ch = (1.0 if u.channel_pref == channel else cfg.channel_fit_off) \
+                if cfg.use_channels else 1.0
+            p_try = craft * ch * resonance       # craft now applies in the LIVE funnel (bug fix)
             p_buy = self._p_buy(u)
             tries += p_try
             purchases += p_try * p_buy
@@ -402,7 +406,8 @@ class FirmEnv:
         for c in action.get("campaigns", []) or []:
             spend = float(c.get("spend", 0.0))
             spend = max(0.0, min(spend, self.cash))   # can't overspend cash
-            res = self._run_campaign(c.get("target", set()), spend)
+            res = self._run_campaign(c.get("target", set()), spend,
+                                     channel=c.get("channel", 0), craft=c.get("craft", 1.0))
             self.cash -= spend
             self.cash += res["revenue"]
             revenue += res["revenue"]

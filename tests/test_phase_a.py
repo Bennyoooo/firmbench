@@ -5,6 +5,10 @@ from sim import (Config, generate_world, run_episode, FirmEnv,
                  NaivePolicy, ScriptedExperimenter, OraclePolicy)
 
 
+def _popular_pain(w, cfg):
+    return max(range(cfg.n_pains), key=lambda x: w.pain_popularity[x])
+
+
 # ----------------------------- Step 1: Config -----------------------------
 
 def test_flags_default_off_preserves_v1():
@@ -38,6 +42,49 @@ def test_v1_world_unchanged_when_disabled():
     a = generate_world(3, Config())
     assert a.segments is None
     assert a.pain_popularity == generate_world(3, Config()).pain_popularity
+
+
+# ----------------------------- Step 3: channels + craft -----------------------------
+
+def test_channel_matters():
+    cfg = Config.phase_a(n_users=400)
+    w = generate_world(1, cfg); env = FirmEnv(w)
+    p = _popular_pain(w, cfg)
+    tries = [env._run_campaign({p}, 9000.0, channel=c)["tries"] for c in range(cfg.n_channels)]
+    assert max(tries) > min(tries) + 1e-6        # channel choice changes conversion
+
+def test_best_channel_is_resonance_weighted_modal():
+    from collections import defaultdict
+    cfg = Config.phase_a(n_users=400)
+    w = generate_world(1, cfg); env = FirmEnv(w)
+    p = _popular_pain(w, cfg)
+    wt = defaultdict(float)
+    for i in w.users_by_pain[p]:
+        u = w.users[i]; wt[u.channel_pref] += len({p} & u.pains) / len(u.pains)
+    modal = max(wt, key=wt.get)
+    tries = {c: env._run_campaign({p}, 9000.0, channel=c)["tries"] for c in range(cfg.n_channels)}
+    assert max(tries, key=tries.get) == modal    # right channel reaches the right segment
+
+def test_craft_scales_tries_live():              # bug fix: craft applies in the LIVE funnel
+    cfg = Config.phase_a(); w = generate_world(1, cfg); env = FirmEnv(w)
+    p = _popular_pain(w, cfg)
+    base = env._run_campaign({p}, 200.0, channel=0, craft=1.0)["tries"]
+    half = env._run_campaign({p}, 200.0, channel=0, craft=0.5)["tries"]
+    assert base > 0 and half < base
+
+def test_channel_forwarded_through_step():        # CR2: channel/craft survive env.step()
+    from collections import defaultdict
+    cfg = Config.phase_a(n_users=400); w = generate_world(1, cfg)
+    p = _popular_pain(w, cfg)
+    wt = defaultdict(float)
+    for i in w.users_by_pain[p]:
+        u = w.users[i]; wt[u.channel_pref] += len({p} & u.pains) / len(u.pains)
+    best = max(wt, key=wt.get); worst = min(range(cfg.n_channels), key=lambda c: wt.get(c, 0.0))
+    e1 = FirmEnv(w); o1, _, _, _ = e1.step({"build": None, "price": 50.0,
+        "campaigns": [{"target": {p}, "spend": 9000.0, "channel": best}]})
+    e2 = FirmEnv(w); o2, _, _, _ = e2.step({"build": None, "price": 50.0,
+        "campaigns": [{"target": {p}, "spend": 9000.0, "channel": worst}]})
+    assert o1["per_campaign"][0]["tries"] > o2["per_campaign"][0]["tries"]
 
 
 if __name__ == "__main__":
