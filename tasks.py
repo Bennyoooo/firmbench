@@ -5,57 +5,52 @@
 
 from env import env, market_discovery  # noqa: F401
 
-SYSTEM_PROMPT = """You run a simulated software company. Your goal: maximize PROFIT over 10 rounds.
+SYSTEM_PROMPT = """You run a simulated software company. Goal: maximize PROFIT over the
+full episode (~16 rounds). Call get_state() FIRST — it shows the round count, your cash,
+and the pain/feature names for this market.
 
-THE MARKET (hidden — you must discover it by experimenting):
-- There are 8 customer pain points (IDs 0-7) and 8 buildable features (IDs 0-7).
-- Each pain is solved by exactly ONE feature, but the mapping is hidden.
-- Customers have 1-3 pains each; some pains are far more common than others (hidden).
-- A customer buys only if your product has the feature solving their pain AND your price
-  fits their willingness to pay.
+THE MARKET (hidden — discover it by experimenting):
+- 8 customer pain points and 8 buildable features. Each pain is solved by exactly ONE
+  feature, but the mapping is hidden.
+- Customers belong to hidden SEGMENTS (personas). Each segment clusters certain pains,
+  has its own willingness-to-pay and price sensitivity, prefers a certain marketing
+  CHANNEL, and has its own loyalty (how fast it churns).
+- A customer subscribes only if your product has the feature solving their pain, the
+  quality is high enough for them, AND the price fits their willingness to pay.
 
-First call get_state() to see the pain names and feature names for this market.
+THIS IS A SUBSCRIPTION BUSINESS — optimize lifetime value, not one-shot sales:
+- Subscribers keep PAYING every round (recurring revenue).
+- They CHURN (cancel) if your price is too high for them or your quality too low.
+- So acquire the right customers EARLY and keep them happy — recurring revenue compounds
+  over the remaining rounds.
 
-YOUR TOOLS (call them via MCP):
-- probe_market(target_pains, spend, ad_copy?) — run a campaign to learn about demand.
-  Returns audience, impressions, tries, purchases, revenue.
-  Optional: pass ad_copy as "Headline | Body text | CTA button text" to create a real ad.
-  Example: ad_copy="Stop Losing Customers | Our search finds what you need instantly | Try Free"
-- build_feature(feature_id?, spec?) — build a feature ($300).
-  Pass feature_id (0-7) OR pass spec text and the system infers which feature you mean.
-  Optional: write a spec to create a product page. Include a title line, description, and
-  bullet points for benefits (prefix with - or •).
-  Example: spec="Smart Search Engine\\nFind anything instantly with autocomplete.\\n- Sub-100ms results\\n- Typo tolerance\\n- Faceted filters"
-- set_price(price) — set your price.
-- run_campaign(target_pains, spend, ad_copy?) — full marketing push (same as probe, higher spend).
-- get_state() — check cash, price, built features, round number, AND pain/feature names.
-- end_round() — commit actions and advance. Call this after EVERY round.
-
-IMPORTANT WORKFLOW — follow this pattern each round:
-1. Decide what to do this round (build? probe? campaign?)
-2. Call the relevant tools (2-4 calls per round is typical)
-3. Call end_round() to commit and see results
-4. Repeat for next round — you have 10 rounds total
+YOUR TOOLS (via MCP):
+- probe_market(target_pains, spend, ad_copy?, channel?) — cheap campaign to learn demand.
+  Returns: audience (how many customers have those pains — the key demand signal), tries,
+  purchases, revenue, and bounce reasons — bounced_quality (wanted it, quality too low)
+  vs bounced_price (quality ok, price too high). Use these to diagnose failures.
+  channel (0-2): segments differ in which channel reaches them. Probe a pain on different
+  channels to find which one converts best (more tries = the right channel for that segment).
+  ad_copy: "Headline | Body | CTA" — better copy raises conversion.
+- build_feature(feature_id?, spec?) — build a feature ($300). A better spec -> higher
+  implementation quality -> customers convert AND stay (low quality -> they bounce and churn).
+- set_price(price) — price drives both conversion and churn: too high -> bounce now and
+  churn later; too low -> leaves money on the table.
+- run_campaign(target_pains, spend, ad_copy?, channel?) — big marketing push.
+- get_state() — round, horizon, cash, built features, pain/feature names.
+- end_round() — commit actions and advance. Call after EVERY round.
 
 STRATEGY:
-Round 1: Call get_state() to see pain/feature names. Probe all 8 pains cheaply ($10 each)
-  to find the biggest audiences. The AUDIENCE number tells you how many customers have that
-  pain — this is the most important discovery signal. Rank pains by audience size.
-  Write compelling ad copy for each probe. Then end_round().
-Rounds 2-4: Build ONE feature per round targeting the highest-audience pains. After
-  building, probe the top 3-4 pains ($50 each) with targeted ad copy to discover which
-  pain the new feature solves (purchases > 0 means it matches). Then end_round().
-  IMPORTANT: Build only 2-3 features total, not more — each costs $300.
-Rounds 5-10: Exploit — run BIG campaigns ($500-$2000) with polished ad copy ONLY on pains
-  where you discovered the matching feature (purchases appeared). Set price around $40-80.
-  This is where you make money. Then end_round().
+1. get_state(); probe each pain on each channel cheaply ($10) — rank pains by AUDIENCE,
+   and note which channel gives the most tries per pain (that segment's channel).
+2. Build features for the biggest-audience pains. After each build, probe the top pains
+   (on their best channel) to find which pain it solves (purchases > 0). Read the bounce
+   reasons to tell "wrong feature / low quality" apart from "price too high".
+3. Exploit EARLY: run big campaigns on solved high-demand pains, on the right channel,
+   with strong ad copy and a price that maximizes retention x margin. Recurring revenue
+   then compounds for the rest of the episode.
 
-AD COPY TIPS: Good ad copy names the specific pain ("tired of slow search?"), states a
-concrete benefit ("find results in under 100ms"), and has a clear CTA ("Try it free").
-The better your copy, the higher your conversion rate.
-
-Budget: $6000 starting cash. Building costs $300. Don't go bankrupt.
-Be efficient — call end_round() after 2-5 tool calls per round, not more."""
+Watch bankruptcy (cash must stay >= 0). Be efficient: 2-5 tool calls per round, then end_round()."""
 
 _task1 = market_discovery(prompt=SYSTEM_PROMPT, seed=42)
 _task1.slug = "market_discovery_seed42"
