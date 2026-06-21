@@ -1,0 +1,226 @@
+{
+  "seed": 42,
+  "rounds": 10,
+  "final_reward": 1.0,
+  "profit": 139435.96,
+  "oracle_profit": 139435.96,
+  "disc_eff": 1.0,
+  "flagged": false,
+  "pain_names": [
+    "poor search",
+    "no notifications",
+    "lack of reporting",
+    "difficult migration",
+    "weak security",
+    "complex pricing",
+    "missing integrations",
+    "data export limitations"
+  ],
+  "feature_names": [
+    "migration toolkit",
+    "analytics suite",
+    "offline sync engine",
+    "notification center",
+    "smart search",
+    "mobile app",
+    "data exporter",
+    "payment dashboard"
+  ],
+  "actions": [
+    {
+      "build": 7,
+      "price": 50.0,
+      "campaigns": [
+        {
+          "target": [
+            3
+          ],
+          "spend": 3000.0,
+          "revenue": 5671.9,
+          "purchases": 113.44,
+          "audience": 2954,
+          "channel": 0
+        }
+      ]
+    },
+    {
+      "build": 1,
+      "price": 60.0,
+      "campaigns": [
+        {
+          "target": [
+            3,
+            7
+          ],
+          "spend": 5171.9,
+          "revenue": 16085.6,
+          "purchases": 268.09,
+          "audience": 3864,
+          "channel": 0
+        }
+      ]
+    },
+    {
+      "build": 6,
+      "price": 60.0,
+      "campaigns": [
+        {
+          "target": [
+            2,
+            3,
+            7
+          ],
+          "spend": 15585.6,
+          "revenue": 62741.5,
+          "purchases": 1045.69,
+          "audience": 4282,
+          "channel": 0
+        }
+      ]
+    },
+    {
+      "build": 3,
+      "price": 60.0,
+      "campaigns": [
+        {
+          "target": [
+            0,
+            2,
+            3,
+            7
+          ],
+          "spend": 62241.5,
+          "revenue": 107695.6,
+          "purchases": 1794.93,
+          "audience": 4553,
+          "channel": 0
+        }
+      ]
+    },
+    {
+      "build": 2,
+      "price": 60.0,
+      "campaigns": [
+        {
+          "target": [
+            0,
+            2,
+            3,
+            4,
+            7
+          ],
+          "spend": 107195.6,
+          "revenue": 125865.9,
+          "purchases": 2097.76,
+          "audience": 4706,
+          "channel": 0
+        }
+      ]
+    },
+    {
+      "build": 0,
+      "price": 70.0,
+      "campaigns": [
+        {
+          "target": [
+            0,
+            2,
+            3,
+            4,
+            6,
+            7
+          ],
+          "spend": 125365.9,
+          "revenue": 142936.0,
+          "purchases": 2041.94,
+          "audience": 4827,
+          "channel": 0
+        }
+      ]
+    },
+    {
+      "build": null,
+      "price": 70.0,
+      "campaigns": [
+        {
+          "target": [
+            0,
+            2,
+            3,
+            4,
+            6,
+            7
+          ],
+          "spend": 142936.0,
+          "revenue": 142936.0,
+          "purchases": 2041.94,
+          "audience": 4827,
+          "channel": 0
+        }
+      ]
+    },
+    {
+      "build": null,
+      "price": 70.0,
+      "campaigns": [
+        {
+          "target": [
+            0,
+            2,
+            3,
+            4,
+            6,
+            7
+          ],
+          "spend": 142936.0,
+          "revenue": 142936.0,
+          "purchases": 2041.94,
+          "audience": 4827,
+          "channel": 0
+        }
+      ]
+    },
+    {
+      "build": null,
+      "price": 70.0,
+      "campaigns": [
+        {
+          "target": [
+            0,
+            2,
+            3,
+            4,
+            6,
+            7
+          ],
+          "spend": 142936.0,
+          "revenue": 142936.0,
+          "purchases": 2041.94,
+          "audience": 4827,
+          "channel": 0
+        }
+      ]
+    },
+    {
+      "build": null,
+      "price": 70.0,
+      "campaigns": [
+        {
+          "target": [
+            0,
+            2,
+            3,
+            4,
+            6,
+            7
+          ],
+          "spend": 142936.0,
+          "revenue": 142936.0,
+          "purchases": 2041.94,
+          "audience": 4827,
+          "channel": 0
+        }
+      ]
+    }
+  ]
+}

@@ -129,7 +129,9 @@ const MODEL_NAMES = {
   'gpt-5-5': 'GPT-5.5', 'gpt-5': 'GPT-5', 'gpt-5-mini': 'GPT-5 Mini', 'gpt-4o': 'GPT-4o',
   'claude': 'Claude Sonnet 4.6', 'claude-opus-4-8': 'Claude Opus 4.8',
   'gemini': 'Gemini 3.5 Flash', 'deepseek-v4-0324': 'DeepSeek V4',
-  'glm-5-1': 'GLM 5.1', '42': 'Latest Run'
+  'glm-5-1': 'GLM 5.1', '42': 'Latest Run',
+  'qwen3-8b-base': 'Qwen3-8B (base)', 'qwen3-8b-grpo': 'Qwen3-8B (GRPO-trained)',
+  'oracle': 'Oracle (ceiling)', 'scripted': 'Scripted experimenter', 'naive': 'Naive'
 };
 const RANK_COLORS = ['#f59e0b','#a0a0a0','#cd7f32','#667eea','#667eea','#667eea','#667eea','#667eea'];
 
@@ -140,6 +142,7 @@ async function discoverModels() {
     '42_gpt-5-5', '42_gpt-5', '42_gpt-5-mini', '42_gpt-4o',
     '42_claude', '42_claude-opus-4-8', '42_gemini',
     '42_deepseek-v4-0324', '42_glm-5-1',
+    '42_qwen3-8b-grpo', '42_qwen3-8b-base', '42_oracle', '42_scripted', '42_naive',
   ];
   // Also check artifacts/42 as "Latest Run"
   modelCandidates.unshift('42');
