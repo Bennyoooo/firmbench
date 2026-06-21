@@ -1,0 +1,12 @@
+{
+  "model": "qwen3-8b",
+  "job": "s308sdlb",
+  "loss": "grpo",
+  "epochs": 3,
+  "reward": "profit/oracle (clipped [-1,1.5])",
+  "curve": [
+    0.19185195419679577,
+    0.349563142379274,
+    0.4740100489697084
+  ]
+}
