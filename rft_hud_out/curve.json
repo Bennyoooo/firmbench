@@ -3,28 +3,35 @@
     {
       "step": 0,
       "model": "base",
-      "eval": 0.0168
+      "eval": 0.4129
     },
     {
       "step": 1,
-      "eval": 0.0038,
-      "train_mean_reward": 0.014,
+      "eval": 0.9002,
+      "train_mean_reward": 0.4611,
       "n_rollouts": 16,
-      "skill": 0.31
+      "skill": 0.519
     },
     {
       "step": 2,
-      "eval": 0.0007,
-      "train_mean_reward": 0.0717,
+      "eval": 0.98,
+      "train_mean_reward": 0.9495,
       "n_rollouts": 16,
-      "skill": 0.461
+      "skill": 0.857
     },
     {
       "step": 3,
-      "eval": 0.0785,
-      "train_mean_reward": 0.1229,
+      "eval": 0.9957,
+      "train_mean_reward": 0.9941,
       "n_rollouts": 16,
-      "skill": 0.594
+      "skill": 0.961
+    },
+    {
+      "step": 4,
+      "eval": 0.9991,
+      "train_mean_reward": 0.9979,
+      "n_rollouts": 16,
+      "skill": 0.97
     }
   ],
   "references": {
@@ -33,7 +40,7 @@
     "naive": 0.018695691670347923
   },
   "config": {
-    "steps": 3,
+    "steps": 4,
     "group_size": 4,
     "lr": 1e-05,
     "loss_fn": "importance_sampling",

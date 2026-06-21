@@ -106,7 +106,12 @@ class MockBackend:
     def _episode_reward(self, seed, k, temperature):
         from rft import MockModel  # offline-safe (README: rft.py --selftest needs no keys)
         world = generate_world(seed, CFG)
-        agent = MockModel(world, skill=self.skill, seed=seed * 1000 + k, temperature=temperature)
+        # Imitate the ORACLE, not the scripted experimenter: under the full Phase A market
+        # the LTV-aware oracle is the ceiling (disc_eff ~1.0) while scripted plateaus at
+        # ~7%, so a scripted-imitating mock could never bend the on-policy curve. The mock
+        # plays oracle with prob `skill`, else random — so skill->1 climbs toward the ceiling.
+        agent = MockModel(world, skill=self.skill, seed=seed * 1000 + k, temperature=temperature,
+                          good_factory=lambda w, s: OraclePolicy(w))
         return disc_eff(world, run_episode(world, agent))
 
     async def rollout_group(self, seed, n, temperature):

@@ -114,20 +114,27 @@ def grade_episode(world, action_log, profit, verifier):
 class MockModel:
     """A stand-in for the LLM whose competence is controlled by `skill` in [0,1].
 
-    Each round it plays the disciplined ScriptedExperimenter action with prob `skill`,
-    otherwise a NaivePolicy (random) action. Raising `skill` simulates the effect of
-    fine-tuning on winning trajectories. It records (prompt, completion) exactly like
-    the real agent, so the dataset/filtering/eval code is exercised end-to-end offline.
+    Each round it plays the disciplined "good" action with prob `skill`, otherwise a
+    NaivePolicy (random) action. Raising `skill` simulates the effect of fine-tuning on
+    winning trajectories. It records (prompt, completion) exactly like the real agent, so
+    the dataset/filtering/eval code is exercised end-to-end offline.
+
+    `good_factory(world, seed) -> policy` selects the policy the mock imitates. Default is
+    ScriptedExperimenter (the v1 expert, disc_eff ~50% on Config() — enough to bend the
+    rft.py curve). The on-policy harness (rft_hud.py, which trains on the full Phase A
+    market where scripted caps at ~7% disc_eff) passes OraclePolicy so the selftest curve
+    bends toward the ceiling rather than the scripted plateau.
     """
-    def __init__(self, world, skill=0.0, seed=0, temperature=0.0):
+    def __init__(self, world, skill=0.0, seed=0, temperature=0.0, good_factory=None):
         self.w = world
         self.cfg = world.cfg
         self.skill = skill
         self.seed = seed
         self.temperature = temperature
+        self.good_factory = good_factory or (lambda w, s: ScriptedExperimenter(w, s))
 
     def reset(self):
-        self.good = ScriptedExperimenter(self.w, self.seed)
+        self.good = self.good_factory(self.w, self.seed)
         self.bad = NaivePolicy(self.w, self.seed)
         self.good.reset(); self.bad.reset()
         self.rng = random.Random(self.seed * 7919 + int(self.skill * 1000))
