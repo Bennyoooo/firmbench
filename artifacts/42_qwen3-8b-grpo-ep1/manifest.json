@@ -40,9 +40,14 @@
           "audience": 1980,
           "tries": 42.0,
           "purchases": 21.4,
-          "revenue": 1046.9
+          "revenue": 1046.9,
+          "ad_copy": "Connect everything | Native API + Zapier so your stack finally talks to itself. | See integrations",
+          "craft": 0.74,
+          "artifact_path": "artifacts/42_qwen3-8b-grpo-ep1/ad_r0.html"
         }
-      ]
+      ],
+      "quality": 0.82,
+      "feature_artifact_path": "artifacts/42_qwen3-8b-grpo-ep1/feat_r0.html"
     },
     {
       "build": 6,
@@ -57,9 +62,14 @@
           "audience": 1740,
           "tries": 42.0,
           "purchases": 21.4,
-          "revenue": 1046.9
+          "revenue": 1046.9,
+          "ad_copy": "Your work, on the go | A native mobile app so you never miss a beat. | Get the app",
+          "craft": 0.74,
+          "artifact_path": "artifacts/42_qwen3-8b-grpo-ep1/ad_r1.html"
         }
-      ]
+      ],
+      "quality": 0.82,
+      "feature_artifact_path": "artifacts/42_qwen3-8b-grpo-ep1/feat_r1.html"
     },
     {
       "build": null,
@@ -75,7 +85,10 @@
           "audience": 3720,
           "tries": 192.0,
           "purchases": 59.4,
-          "revenue": 2912.9
+          "revenue": 2912.9,
+          "ad_copy": "Connect everything | Native API + Zapier so your stack finally talks to itself. | See integrations",
+          "craft": 0.74,
+          "artifact_path": "artifacts/42_qwen3-8b-grpo-ep1/ad_r2.html"
         }
       ]
     },
@@ -93,7 +106,10 @@
           "audience": 3720,
           "tries": 218.4,
           "purchases": 76.0,
-          "revenue": 3723.7
+          "revenue": 3723.7,
+          "ad_copy": "Connect everything | Native API + Zapier so your stack finally talks to itself. | See integrations",
+          "craft": 0.74,
+          "artifact_path": "artifacts/42_qwen3-8b-grpo-ep1/ad_r3.html"
         }
       ]
     },
@@ -111,7 +127,10 @@
           "audience": 3720,
           "tries": 244.8,
           "purchases": 92.5,
-          "revenue": 4534.5
+          "revenue": 4534.5,
+          "ad_copy": "Connect everything | Native API + Zapier so your stack finally talks to itself. | See integrations",
+          "craft": 0.74,
+          "artifact_path": "artifacts/42_qwen3-8b-grpo-ep1/ad_r4.html"
         }
       ]
     },
@@ -129,7 +148,10 @@
           "audience": 3720,
           "tries": 271.2,
           "purchases": 109.1,
-          "revenue": 5345.4
+          "revenue": 5345.4,
+          "ad_copy": "Connect everything | Native API + Zapier so your stack finally talks to itself. | See integrations",
+          "craft": 0.74,
+          "artifact_path": "artifacts/42_qwen3-8b-grpo-ep1/ad_r5.html"
         }
       ]
     },
@@ -147,7 +169,10 @@
           "audience": 3720,
           "tries": 297.6,
           "purchases": 125.6,
-          "revenue": 6156.2
+          "revenue": 6156.2,
+          "ad_copy": "Connect everything | Native API + Zapier so your stack finally talks to itself. | See integrations",
+          "craft": 0.74,
+          "artifact_path": "artifacts/42_qwen3-8b-grpo-ep1/ad_r6.html"
         }
       ]
     },
@@ -165,7 +190,10 @@
           "audience": 3720,
           "tries": 324.0,
           "purchases": 142.2,
-          "revenue": 6967.0
+          "revenue": 6967.0,
+          "ad_copy": "Connect everything | Native API + Zapier so your stack finally talks to itself. | See integrations",
+          "craft": 0.74,
+          "artifact_path": "artifacts/42_qwen3-8b-grpo-ep1/ad_r7.html"
         }
       ]
     },
@@ -183,7 +211,10 @@
           "audience": 3720,
           "tries": 350.4,
           "purchases": 158.7,
-          "revenue": 7777.8
+          "revenue": 7777.8,
+          "ad_copy": "Connect everything | Native API + Zapier so your stack finally talks to itself. | See integrations",
+          "craft": 0.74,
+          "artifact_path": "artifacts/42_qwen3-8b-grpo-ep1/ad_r8.html"
         }
       ]
     },
@@ -201,7 +232,10 @@
           "audience": 3720,
           "tries": 376.8,
           "purchases": 175.3,
-          "revenue": 8588.6
+          "revenue": 8588.6,
+          "ad_copy": "Connect everything | Native API + Zapier so your stack finally talks to itself. | See integrations",
+          "craft": 0.74,
+          "artifact_path": "artifacts/42_qwen3-8b-grpo-ep1/ad_r9.html"
         }
       ]
     }

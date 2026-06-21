@@ -40,9 +40,14 @@
           "audience": 1980,
           "tries": 60.0,
           "purchases": 21.3,
-          "revenue": 1043.1
+          "revenue": 1043.1,
+          "ad_copy": "Connect everything | Native API + Zapier so your stack finally talks to itself. | See integrations",
+          "craft": 0.42,
+          "artifact_path": "artifacts/42_qwen3-8b-base/ad_r0.html"
         }
-      ]
+      ],
+      "quality": 0.55,
+      "feature_artifact_path": "artifacts/42_qwen3-8b-base/feat_r0.html"
     },
     {
       "build": null,
@@ -57,7 +62,10 @@
           "audience": 1980,
           "tries": 60.0,
           "purchases": 16.1,
-          "revenue": 787.2
+          "revenue": 787.2,
+          "ad_copy": "Connect everything | Native API + Zapier so your stack finally talks to itself. | See integrations",
+          "craft": 0.42,
+          "artifact_path": "artifacts/42_qwen3-8b-base/ad_r1.html"
         }
       ]
     },
@@ -74,7 +82,10 @@
           "audience": 1980,
           "tries": 60.0,
           "purchases": 18.7,
-          "revenue": 916.4
+          "revenue": 916.4,
+          "ad_copy": "Connect everything | Native API + Zapier so your stack finally talks to itself. | See integrations",
+          "craft": 0.42,
+          "artifact_path": "artifacts/42_qwen3-8b-base/ad_r2.html"
         }
       ]
     },
@@ -91,7 +102,10 @@
           "audience": 1980,
           "tries": 60.0,
           "purchases": 21.3,
-          "revenue": 1045.6
+          "revenue": 1045.6,
+          "ad_copy": "Connect everything | Native API + Zapier so your stack finally talks to itself. | See integrations",
+          "craft": 0.42,
+          "artifact_path": "artifacts/42_qwen3-8b-base/ad_r3.html"
         }
       ]
     },
@@ -108,7 +122,10 @@
           "audience": 1980,
           "tries": 60.0,
           "purchases": 24.0,
-          "revenue": 1174.9
+          "revenue": 1174.9,
+          "ad_copy": "Connect everything | Native API + Zapier so your stack finally talks to itself. | See integrations",
+          "craft": 0.42,
+          "artifact_path": "artifacts/42_qwen3-8b-base/ad_r4.html"
         }
       ]
     },
@@ -125,7 +142,10 @@
           "audience": 1980,
           "tries": 60.0,
           "purchases": 26.6,
-          "revenue": 1304.1
+          "revenue": 1304.1,
+          "ad_copy": "Connect everything | Native API + Zapier so your stack finally talks to itself. | See integrations",
+          "craft": 0.42,
+          "artifact_path": "artifacts/42_qwen3-8b-base/ad_r5.html"
         }
       ]
     },
@@ -142,7 +162,10 @@
           "audience": 1980,
           "tries": 60.0,
           "purchases": 29.3,
-          "revenue": 1433.3
+          "revenue": 1433.3,
+          "ad_copy": "Connect everything | Native API + Zapier so your stack finally talks to itself. | See integrations",
+          "craft": 0.42,
+          "artifact_path": "artifacts/42_qwen3-8b-base/ad_r6.html"
         }
       ]
     },
@@ -159,7 +182,10 @@
           "audience": 1980,
           "tries": 60.0,
           "purchases": 31.9,
-          "revenue": 1562.6
+          "revenue": 1562.6,
+          "ad_copy": "Connect everything | Native API + Zapier so your stack finally talks to itself. | See integrations",
+          "craft": 0.42,
+          "artifact_path": "artifacts/42_qwen3-8b-base/ad_r7.html"
         }
       ]
     },
@@ -176,7 +202,10 @@
           "audience": 1980,
           "tries": 60.0,
           "purchases": 34.5,
-          "revenue": 1691.8
+          "revenue": 1691.8,
+          "ad_copy": "Connect everything | Native API + Zapier so your stack finally talks to itself. | See integrations",
+          "craft": 0.42,
+          "artifact_path": "artifacts/42_qwen3-8b-base/ad_r8.html"
         }
       ]
     },
@@ -193,7 +222,10 @@
           "audience": 1980,
           "tries": 60.0,
           "purchases": 37.2,
-          "revenue": 1821.0
+          "revenue": 1821.0,
+          "ad_copy": "Connect everything | Native API + Zapier so your stack finally talks to itself. | See integrations",
+          "craft": 0.42,
+          "artifact_path": "artifacts/42_qwen3-8b-base/ad_r9.html"
         }
       ]
     }
