@@ -218,6 +218,22 @@ baseline, leaving wide headroom for RL:
 (Re-running the model leaderboard on the **Phase A** env needs `hud deploy .` first — the
 local code is Phase A, the hosted image is still v1.)
 
+**Multi-agent (Phase D) leaderboard** — Coordinator-dispatch team, real HUD runs via the
+gateway (`hud eval env_multiagent.py claude --gateway`), team disc.eff vs the local team baselines:
+
+| Policy / Model | Seed 42 | Seed 123 | Seed 7 | Mean |
+|---|---|---|---|---|
+| oracle (full-info ceiling) | 1.000 | 1.000 | 1.000 | **1.000** |
+| scripted-team (reads blackboard) | 0.075 | 0.043 | 0.023 | **0.047** |
+| **Claude Sonnet 4.6** (untrained team) | 0.036 | 0.003 | 0.009 | **0.016** |
+| naive-team (no comms) | 0.005 | 0.009 | 0.005 | **0.006** |
+
+An untrained frontier model coordinating the four roles lands at the **no-coordination
+floor** — it executes the round protocol cleanly but can't yet play the multi-agent LTV game
+(who-builds-what, acquire-then-coast, retention pricing), so it sits below the disciplined
+scripted team and far below the oracle. That gap is the coordination tax RL has room to close.
+See [PHASE_D_RUN.md](./PHASE_D_RUN.md) for job links.
+
 ## Docs
 
 - **[PLAN.md](./PLAN.md)** — full design spec + progress tracker (incl. the Phase D section)

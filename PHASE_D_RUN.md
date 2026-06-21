@@ -51,16 +51,32 @@ hud eval env_multiagent.py claude \
   -y --auto-respond --max-steps 100 --gateway -v
 ```
 
-**Run (claude-sonnet-4-6, seed 42).** The MCP env served locally; Claude correctly executed
-the round protocol every round — `get_team_state → coordinator_set_budget → delegate_build →
-delegate_price → delegate_campaigns → end_round` — through the full episode.
+**Run (claude-sonnet-4-6, 3 seeds, via the HUD gateway).** The MCP env served locally;
+Claude correctly executed the round protocol every round — `get_team_state →
+coordinator_set_budget → delegate_build → delegate_price → delegate_campaigns → end_round` —
+through all 16 rounds of each episode (it even self-summarized "🏆 GAME COMPLETE").
 
-> **Result:** _<filled in when the run completes; see job link in the eval output>_
+| Seed | Claude (team disc.eff) | naive_team | scripted_team | oracle |
+|---|---|---|---|---|
+| 42 | **0.036** | 0.005 | 0.075 | 1.000 |
+| 123 | **0.003** | 0.009 | 0.043 | 1.000 |
+| 7 | **0.009** | 0.005 | 0.023 | 1.000 |
+| **mean** | **0.016** | 0.006 | 0.047 | 1.000 |
 
-Compare against the local references on the same task/seed: scripted-team ≈ 0.05–0.08,
-naive-team ≈ 0.02, oracle = 1.000. (Note: a fixed env bug first surfaced here — a task-only
-file resolves its env to the sibling `env.py`, the single-agent env; the multi-agent env is
-served by pointing `hud eval` at the self-contained `env_multiagent.py`.)
+Jobs: [seed 42](https://hud.ai/jobs/51adff8e87b24f568f81bc13cee18b40) ·
+[seeds 123+7](https://hud.ai/jobs/f73408e4e2de4816a11849af7276e96e). (Per-seed 123/7 read in
+task-id order from the HUD details table; the 3-seed mean is order-independent.)
+
+**Read:** an untrained frontier model, driving the four roles via the delegate tools, lands
+at the **no-coordination floor** (≈ the naive-team 0.016) — well below the disciplined
+scripted team (0.047) and far below the LTV oracle (1.000). The multi-agent LTV game
+(coordinate who-builds-what, acquire-then-coast, price for retention) is exactly the skill
+RL has room to teach. This run also validates the **real HUD pipeline end-to-end** (gateway
+auth → local MCP env → tool round-protocol → team disc.eff grade).
+
+(A fixed env-resolution bug first surfaced here: a task-only file resolves its env to the
+sibling `env.py` — the single-agent env — so the multi-agent env is served by pointing
+`hud eval` at the self-contained `env_multiagent.py`.)
 
 ---
 
