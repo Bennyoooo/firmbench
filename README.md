@@ -38,12 +38,38 @@ export FIREWORKS_API_KEY=...
 python3 agent.py
 ```
 
+## Real RFT — "the curve bends"
+
+`rft.py` runs **rejection-sampling fine-tuning** (expert iteration / STaR): generate
+rollouts → grade with the held-out verifier → keep the best non-flagged, profitable
+trajectory per world → fine-tune the model on those turns → re-evaluate → repeat. The
+verifier is both the reward *and* the curator of the training set — only profitable,
+non-cheating episodes become SFT data.
+
+```bash
+# Offline validation — no key needed. A mock model whose skill rises each iteration
+# drives the whole rollout→filter→dataset→eval loop and prints the bending curve.
+python3 rft.py --selftest --iterations 3
+#   iter 0   -733.5
+#   iter 3  15524.1  ######################   (oracle ceiling 26321)
+
+# Real run — needs Fireworks fine-tuning access.
+export FIREWORKS_API_KEY=...
+firectl signin                        # https://docs.fireworks.ai/tools-sdks/firectl
+python3 rft.py --run --iterations 2 --rollouts 4 \
+    --model accounts/fireworks/models/llama-v3p2-3b-instruct
+```
+
+Writes `rft_out/sft_iter*.jsonl` (the curated SFT datasets) and `rft_out/curve.json`
+(the eval curve). Swap `--model` to Llama 3.2 1B for the absolute cheapest e2e.
+
 ## Layout
 
 ```
 sim.py          deterministic market sim: generate_world, FirmEnv, oracle/naive/scripted
 agent.py        LLM agent harness (Fireworks, structured-JSON actions)
-run.py          verifier (secret held-out + tripwires) + head-to-head eval + REINFORCE
+run.py          verifier (secret held-out + tripwires) + head-to-head eval + toy REINFORCE
+rft.py          real RFT: rejection-sampling fine-tuning on Fireworks (+ offline selftest)
 hud_env.py      HUD v6 environment: MCP tools + verifier grading
 hud_tasks.py    HUD task definitions (3 seeds)
 Dockerfile.hud  deployable image
