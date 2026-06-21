@@ -71,7 +71,7 @@ visible profit diverges from held-out profit.
 **What the agent must learn:** the pain popularity distribution (biggest needs), the
 pain→feature mapping (build the right things), and price elasticity. All via experiments.
 
-## Design docs
+## Docs
 
-- **[PLAN-market-discovery.md](./PLAN-market-discovery.md)** — full design spec
-- **[PLAN-original-regret.md](./PLAN-original-regret.md)** — earlier candidate (reference)
+- **[PLAN.md](./PLAN.md)** — full design spec + progress tracker
+- `DEPRECATED-plan-*.md` — earlier design candidates (kept for reference)
