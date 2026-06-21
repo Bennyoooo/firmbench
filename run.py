@@ -29,112 +29,38 @@ from sim import (Config, World, FirmEnv, generate_world, sigmoid,
 # ----------------------------- verifier -----------------------------
 
 class Verifier:
-    """Grades an episode on SECRET held-out users the agent never saw feedback from.
+    """Grades an episode by discovery efficiency = profit / oracle (a strong reference).
 
-    The world is split: 80% of users are 'visible' (agent gets campaign results
-    from them); 20% are 'held-out' (used only by the verifier to compute the true
-    score). This mirrors the secret-test-set pattern from rl-experiments and the
-    hidden-ticket pattern from autonomous-businesses-template.
+    The original secret-held-out + tripwire design was dropped: this env is
+    execution-based (the env computes profit — nothing for a policy to fake) and
+    domain-randomized per seed, so generalization is measured by held-out eval SEEDS,
+    not a within-episode user split. Rationale: docs/plans/2026-06-21-firmbench-v2-design.md.
     """
 
     def __init__(self, holdout_frac=0.2, tripwire_thresh=0.15, cheat_penalty=0.3):
+        # retained for backward-compatible construction; no longer used by grade()
         self.holdout_frac = holdout_frac
         self.tripwire_thresh = tripwire_thresh
         self.cheat_penalty = cheat_penalty
 
-    def split_world(self, world: World):
-        """Split users into visible (agent sees feedback) and held-out (verifier only).
-        Returns (visible_indices, holdout_indices). Deterministic per world seed."""
-        n = len(world.users)
-        cutoff = int(n * (1 - self.holdout_frac))
-        visible = list(range(cutoff))
-        holdout = list(range(cutoff, n))
-        return visible, holdout
-
-    def replay_on_holdout(self, world: World, holdout_indices: list,
-                          action_log: list) -> float:
-        """Re-run the entire episode's actions on held-out users only.
-
-        action_log: list of dicts, one per round, each = the action + round's
-        built state. We replay the funnel per round per campaign, accumulating
-        profit only from held-out users. This is execution-based grading —
-        we don't trust any reported number, we re-compute.
-        """
-        cfg = world.cfg
-        holdout_set = set(holdout_indices)
-        # build a held-out-only users_by_pain index
-        ho_by_pain = {p: [] for p in range(cfg.n_pains)}
-        for idx in holdout_indices:
-            for p in world.users[idx].pains:
-                ho_by_pain[p].append(idx)
-
-        total_profit = 0.0
-        built = {}  # track built features across rounds
-
-        for entry in action_log:
-            # update built features
-            f = entry.get("build")
-            if f is not None:
-                built[f] = 1.0
-            price = entry["price"]
-            round_revenue = 0.0
-            round_spend = 0.0
-
-            for camp in entry.get("campaigns", []):
-                target = set(camp["target"])
-                spend = camp["spend"] * self.holdout_frac  # proportional
-                round_spend += spend
-
-                pool = set()
-                for p in target:
-                    pool.update(ho_by_pain.get(p, []))
-                pool = sorted(pool)
-                impressions = int(spend * cfg.impressions_per_dollar)
-                reached = pool[:impressions]
-
-                purchases = 0.0
-                for idx in reached:
-                    u = world.users[idx]
-                    resonance = len(target & u.pains) / len(u.pains) if u.pains else 0.0
-                    ff = 0.0
-                    if u.pains:
-                        for p in u.pains:
-                            fe = world.solves[p]
-                            if fe in built:
-                                ff += built[fe]
-                        ff /= len(u.pains)
-                    p_buy = sigmoid(cfg.alpha * ff + cfg.beta * (u.wtp - price) / u.wtp - cfg.gamma)
-                    purchases += resonance * p_buy
-                round_revenue += purchases * price
-
-            build_cost = cfg.build_cost * self.holdout_frac if f is not None else 0.0
-            total_profit += round_revenue - round_spend - build_cost
-
-        return total_profit
-
     def grade(self, world: World, episode_result: dict) -> dict:
-        """Grade an episode. episode_result must contain:
-            action_log: list of per-round action dicts,
-            reported_profit: float, total_profit: float
-        """
-        _, holdout = self.split_world(world)
-        holdout_profit = self.replay_on_holdout(
-            world, holdout, episode_result["action_log"])
-        # scale reported profit to holdout fraction for fair comparison
-        reported_scaled = episode_result["reported_profit"] * self.holdout_frac
-        gap = abs(reported_scaled - holdout_profit) / (abs(holdout_profit) + 100.0)
-        flagged = gap > self.tripwire_thresh
+        """Grade by discovery efficiency = profit / oracle (a strong reference).
 
-        reward = holdout_profit
-        if flagged:
-            reward -= self.cheat_penalty * abs(holdout_profit)
-
+        The secret-held-out + tripwire design was dropped: this env is execution-based
+        (the env computes profit — nothing to fake) and domain-randomized per seed, so
+        generalization is measured by held-out eval SEEDS, not a user split. `flagged`
+        is kept (always False) for backward-compatible callers (rft.py)."""
+        profit = episode_result.get("total_profit", episode_result.get("reported_profit", 0.0))
+        oracle = run_episode(world, OraclePolicy(world))
+        disc_eff = profit / oracle if oracle > 0 else 0.0
         return {
-            "holdout_profit": round(holdout_profit, 2),
-            "reported_profit": round(episode_result["total_profit"], 2),
-            "gap": round(gap, 4),
-            "flagged": flagged,
-            "reward": round(reward, 2),
+            "profit": round(profit, 2),
+            "reported_profit": round(profit, 2),     # alias for backward-compat callers
+            "oracle_profit": round(oracle, 2),
+            "disc_eff": round(disc_eff, 3),
+            "reward": round(max(0.0, min(1.0, disc_eff)), 4),
+            "flagged": False,
+            "beat_oracle": disc_eff > 1.0,
         }
 
 
@@ -343,7 +269,7 @@ def main():
     print("-" * len(header))
     for name, pol_fn in policies.items():
         r = evaluate_policy(pol_fn, test_worlds, verifier)
-        print(f"{name:<30}{r['mean_profit']:>12.0f}{r['mean_reward']:>12.0f}"
+        print(f"{name:<30}{r['mean_profit']:>12.0f}{r['mean_reward']:>12.3f}"
               f"{r['flagged']:>9}")
 
     print(f"\n[2] Training REINFORCE probe/exploit policy on {len(train_seeds)} "
@@ -361,7 +287,7 @@ def main():
     for name, pol_fn in policies.items():
         r = evaluate_policy(pol_fn, test_worlds, verifier)
         results[name] = r
-        print(f"{name:<30}{r['mean_profit']:>12.0f}{r['mean_reward']:>12.0f}"
+        print(f"{name:<30}{r['mean_profit']:>12.0f}{r['mean_reward']:>12.3f}"
               f"{r['flagged']:>9}")
 
     # Verdict
@@ -372,7 +298,7 @@ def main():
     print(f"VERDICT: highest reward -> {winner[0]}")
     if rl and scripted:
         print(f"  RL vs scripted: profit {rl['mean_profit']:.0f} vs {scripted['mean_profit']:.0f}"
-              f"  |  reward {rl['mean_reward']:.0f} vs {scripted['mean_reward']:.0f}")
+              f"  |  reward {rl['mean_reward']:.3f} vs {scripted['mean_reward']:.3f}")
     print("=" * 70)
 
 

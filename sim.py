@@ -14,7 +14,7 @@ expect  naive  <<  scripted  <=  oracle.
 
 import math
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 
 # ----------------------------- config -----------------------------
@@ -36,6 +36,42 @@ class Config:
     wtp_sigma: float = 0.5
     price_grid: tuple = tuple(range(20, 121, 10))
 
+    # ── Phase A ablation flags (default OFF → v1 reproducible + clean baseline) ──
+    use_segments: bool = False
+    use_channels: bool = False
+    use_elasticity: bool = False
+    use_quality_bar: bool = False
+    use_retention: bool = False
+    # population / channel structure
+    n_segments: int = 5
+    n_channels: int = 3
+    channel_fit_off: float = 0.25      # reach multiplier on the wrong channel
+    # elasticity: per-segment beta mean + per-user noise (hybrid population)
+    elasticity_mu: float = 2.0
+    elasticity_sigma: float = 0.5
+    # quality_bar: per-segment min fulfilled-fraction to convert (soft gate)
+    quality_bar_mu: float = 0.3
+    quality_bar_sigma: float = 0.1
+    quality_gate_k: float = 8.0        # softness of the bar (higher = harder gate)
+    # retention / subscription
+    subscription: bool = True
+    churn_base: float = 0.10
+    churn_price_coef: float = 0.30     # churn rises when price > wtp
+    churn_quality_coef: float = 0.30   # churn rises when fulfilled < quality_bar
+
+    @classmethod
+    def phase_a(cls, scale_budget=True, **overrides):
+        """All Phase A latents ON. scale_budget scales horizon/cash with channels
+        (C2) so an ablation FAIL signals unobservability, not just running out of money."""
+        base = dict(use_segments=True, use_channels=True, use_elasticity=True,
+                    use_quality_bar=True, use_retention=True)
+        if scale_budget:
+            nch = overrides.get("n_channels", 3)
+            base["horizon"] = 10 + 2 * nch
+            base["starting_cash"] = 6000.0 * nch
+        base.update(overrides)
+        return cls(**base)
+
 
 def sigmoid(x: float) -> float:
     if x < -60:
@@ -51,6 +87,23 @@ def sigmoid(x: float) -> float:
 class User:
     pains: frozenset
     wtp: float
+    segment_id: int = -1
+    elasticity: float = None     # per-user price sensitivity (segment mean + noise)
+    channel_pref: int = 0        # channel that reaches this user best
+    quality_bar: float = 0.0     # min fulfilled-fraction to convert
+
+
+@dataclass
+class Segment:
+    """Hidden persona: a correlated pain cluster + shared economics (Phase A)."""
+    pain_affinity: list      # weights over pains -> correlated cluster
+    wtp_mu: float
+    wtp_sigma: float
+    elasticity_mu: float     # per-segment price sensitivity (per-user noise added on top)
+    channel_pref: int        # which channel reaches this segment best
+    quality_bar: float       # min fulfilled-fraction to convert
+    churn_base: float        # baseline churn rate (segment-varied)
+    weight: float            # share of population (the new "popularity" to discover)
 
 
 @dataclass
@@ -64,6 +117,7 @@ class World:
     pain_keywords: dict = None        # pain_id -> list[str] for NL matching
     feature_names: list = None        # feature_id -> human name (cosmetic)
     feature_keywords: dict = None     # feature_id -> list[str] for NL matching
+    segments: list = None             # list[Segment] (Phase A; None when use_segments off)
 
 
 def _weighted_sample_without_replacement(items, weights, k, rng):
@@ -82,6 +136,62 @@ def _weighted_sample_without_replacement(items, weights, k, rng):
                 weights.pop(i)
                 break
     return chosen
+
+
+def _weighted_pick(rng, items, weights):
+    """Pick a single item proportional to weights (deterministic given rng)."""
+    items = list(items)
+    total = sum(weights)
+    r = rng.uniform(0, total)
+    upto = 0.0
+    for it, w in zip(items, weights):
+        upto += w
+        if upto >= r:
+            return it
+    return items[-1]
+
+
+def _make_segments(rng, cfg):
+    """K hidden personas: each a skewed (correlated) pain affinity + shared economics,
+    a preferred channel, and a zipf population weight (which segments dominate)."""
+    segs = []
+    seg_ranks = list(range(cfg.n_segments))
+    rng.shuffle(seg_ranks)
+    for s in range(cfg.n_segments):
+        ranks = list(range(cfg.n_pains))
+        rng.shuffle(ranks)
+        affinity = [0.0] * cfg.n_pains
+        for r, p in enumerate(ranks):
+            affinity[p] = 1.0 / (r + 1)
+        segs.append(Segment(
+            pain_affinity=affinity,
+            wtp_mu=cfg.wtp_mu + rng.uniform(-0.3, 0.3),
+            wtp_sigma=cfg.wtp_sigma,
+            elasticity_mu=max(0.2, rng.gauss(cfg.elasticity_mu, 0.4)),
+            channel_pref=rng.randrange(cfg.n_channels),
+            quality_bar=min(0.9, max(0.0, rng.gauss(cfg.quality_bar_mu, cfg.quality_bar_sigma))),
+            churn_base=min(0.4, max(0.02, rng.gauss(cfg.churn_base, 0.04))),
+            weight=1.0 / (seg_ranks[s] + 1),
+        ))
+    return segs
+
+
+def _resample_users_from_segments(rng, cfg, segments):
+    """Hybrid population: persona backbone (pains/channel/quality_bar) + per-user
+    noise on wtp/elasticity."""
+    pains = list(range(cfg.n_pains))
+    seg_weights = [s.weight for s in segments]
+    users = []
+    for _ in range(cfg.n_users):
+        s_idx = _weighted_pick(rng, range(cfg.n_segments), seg_weights)
+        seg = segments[s_idx]
+        k = rng.choice([1, 2, 3])
+        up = _weighted_sample_without_replacement(pains, list(seg.pain_affinity), k, rng)
+        wtp = rng.lognormvariate(seg.wtp_mu, seg.wtp_sigma)
+        elasticity = max(0.1, rng.gauss(seg.elasticity_mu, cfg.elasticity_sigma))
+        users.append(User(frozenset(up), wtp, segment_id=s_idx, elasticity=elasticity,
+                          channel_pref=seg.channel_pref, quality_bar=seg.quality_bar))
+    return users
 
 
 # ----------------------------- name / keyword pools -----------------
@@ -171,6 +281,18 @@ def generate_world(seed: int, cfg: Config = None) -> World:
             users_by_pain[p].append(idx)
     pain_popularity = [len(users_by_pain[p]) for p in pains]
 
+    # Phase A (gated): resample the population from hidden personas. Runs ONLY when
+    # use_segments is on, so the flags-off RNG stream + world stay byte-identical to v1.
+    segments = None
+    if cfg.use_segments:
+        segments = _make_segments(rng, cfg)
+        users = _resample_users_from_segments(rng, cfg, segments)
+        users_by_pain = {p: [] for p in pains}
+        for idx, u in enumerate(users):
+            for p in u.pains:
+                users_by_pain[p].append(idx)
+        pain_popularity = [len(users_by_pain[p]) for p in pains]
+
     # cosmetic names + keywords for the NL artifact layer (Phase 3).
     # Generated AFTER demography so the existing RNG sequence is preserved
     # and all prior seeds produce identical sim results.
@@ -178,7 +300,8 @@ def generate_world(seed: int, cfg: Config = None) -> World:
     feature_names, feature_keywords = _sample_names(rng, cfg.n_features, _FEATURE_POOL)
 
     return World(cfg, solves, users, users_by_pain, pain_popularity,
-                 pain_names, pain_keywords, feature_names, feature_keywords)
+                 pain_names, pain_keywords, feature_names, feature_keywords,
+                 segments=segments)
 
 
 # ----------------------------- environment -----------------------------
@@ -203,6 +326,7 @@ class FirmEnv:
         self.round = 0
         self.done = False
         self.total_profit = 0.0
+        self.base = {}           # segment_id -> expected active subscribers (LTV; latent)
         return self._state_obs(per_campaign=[])
 
     def _state_obs(self, per_campaign):
@@ -226,11 +350,16 @@ class FirmEnv:
         return got / len(user.pains)
 
     def _p_buy(self, user: User) -> float:
+        cfg = self.cfg
         ff = self._fulfilled_fraction(user)
         price_term = (user.wtp - self.price) / user.wtp
-        return sigmoid(self.cfg.alpha * ff + self.cfg.beta * price_term - self.cfg.gamma)
+        beta_u = user.elasticity if (cfg.use_elasticity and user.elasticity is not None) else cfg.beta
+        p = sigmoid(cfg.alpha * ff + beta_u * price_term - cfg.gamma)
+        if cfg.use_quality_bar:
+            p *= sigmoid(cfg.quality_gate_k * (ff - user.quality_bar))   # soft quality gate
+        return p
 
-    def _run_campaign(self, target: set, spend: float):
+    def _run_campaign(self, target: set, spend: float, channel: int = 0, craft: float = 1.0):
         cfg = self.cfg
         target = set(target)
         # matching pool: users sharing >=1 targeted pain (deterministic order by idx)
@@ -239,23 +368,47 @@ class FirmEnv:
             pool.update(self.w.users_by_pain.get(p, []))
         pool = sorted(pool)
         if spend <= 0 or not target:
-            return {"target": sorted(target), "audience": len(pool), "impressions": 0,
-                    "tries": 0.0, "purchases": 0.0, "revenue": 0.0, "spend": spend}
+            return {"target": sorted(target), "channel": channel, "audience": len(pool),
+                    "impressions": 0, "tries": 0.0, "purchases": 0.0, "bounced_quality": 0.0,
+                    "bounced_price": 0.0, "revenue": 0.0, "spend": spend}
         impressions = int(spend * cfg.impressions_per_dollar)
         reached = pool[:impressions]
 
         tries = 0.0
         purchases = 0.0
+        bounced_quality = 0.0      # resonated + reached, but blocked by the quality bar
+        bounced_price = 0.0        # passed quality, but lost on price
+        by_segment = {}            # internal: new conversions per segment (for LTV base)
         for idx in reached:
             u = self.w.users[idx]
             resonance = len(target & u.pains) / len(u.pains)
-            p_try = resonance            # craft = 1.0 in the structured phase
+            # channel: the right channel converts at full weight, the wrong channel is
+            # downweighted (use_channels off -> 1.0, i.e. exactly v1).
+            ch = (1.0 if u.channel_pref == channel else cfg.channel_fit_off) \
+                if cfg.use_channels else 1.0
+            p_try = craft * ch * resonance       # craft now applies in the LIVE funnel (bug fix)
             p_buy = self._p_buy(u)
+            contrib = p_try * p_buy
             tries += p_try
-            purchases += p_try * p_buy
+            purchases += contrib
+            if cfg.use_retention:
+                by_segment[u.segment_id] = by_segment.get(u.segment_id, 0.0) + contrib
+            # bounce-reason diagnostics: make quality vs price failures separately
+            # observable (the C1 separability fix). Heuristic signals, not exact partition.
+            if cfg.use_quality_bar or cfg.use_elasticity:
+                ff = self._fulfilled_fraction(u)
+                beta_u = u.elasticity if (cfg.use_elasticity and u.elasticity is not None) else cfg.beta
+                gate = sigmoid(cfg.quality_gate_k * (ff - u.quality_bar)) if cfg.use_quality_bar else 1.0
+                price_accept = sigmoid(beta_u * (u.wtp - self.price) / u.wtp)
+                bounced_quality += p_try * (1.0 - gate)
+                bounced_price += p_try * gate * (1.0 - price_accept)
         revenue = purchases * self.price
-        return {"target": sorted(target), "audience": len(pool), "impressions": len(reached),
+        return {"target": sorted(target), "channel": channel, "audience": len(pool),
+                "impressions": len(reached),
                 "tries": round(tries, 2), "purchases": round(purchases, 2),
+                "bounced_quality": round(bounced_quality, 2),
+                "bounced_price": round(bounced_price, 2),
+                "_by_segment": by_segment,                 # internal: stripped before the agent sees it
                 "revenue": round(revenue, 2), "spend": spend}
 
     def step(self, action: dict):
@@ -275,16 +428,33 @@ class FirmEnv:
             build_cost = cfg.build_cost
             self.built[f] = 1.0       # structured phase: full implementation quality
 
+        # LTV: existing subscribers re-pay (recurring revenue) at the current price.
+        retention = cfg.use_retention and cfg.subscription
+        if retention and self.base:
+            recurring = sum(self.base.values()) * self.price
+            self.cash += recurring
+            revenue += recurring
+
         per_campaign = []
+        new_subs = {}            # segment_id -> conversions acquired this round
         for c in action.get("campaigns", []) or []:
             spend = float(c.get("spend", 0.0))
             spend = max(0.0, min(spend, self.cash))   # can't overspend cash
-            res = self._run_campaign(c.get("target", set()), spend)
+            res = self._run_campaign(c.get("target", set()), spend,
+                                     channel=c.get("channel", 0), craft=c.get("craft", 1.0))
             self.cash -= spend
             self.cash += res["revenue"]
             revenue += res["revenue"]
             spend_total += spend
-            per_campaign.append(res)
+            for s, q in res.get("_by_segment", {}).items():
+                new_subs[s] = new_subs.get(s, 0.0) + q
+            # never leak internal (underscore) keys — e.g. per-segment attribution — to the agent
+            per_campaign.append({k: v for k, v in res.items() if not k.startswith("_")})
+
+        if retention:
+            for s, q in new_subs.items():
+                self.base[s] = self.base.get(s, 0.0) + q
+            self._apply_churn()       # responsive + segment-varied
 
         profit = revenue - spend_total - build_cost
         self.total_profit += profit
@@ -292,6 +462,30 @@ class FirmEnv:
         if self.round >= cfg.horizon or self.cash < 0:
             self.done = True
         return self._state_obs(per_campaign), profit, self.done, {}
+
+    def _seg_avg_ff(self, seg) -> float:
+        """Segment-level 'fraction of needs met' (affinity-weighted), drives churn."""
+        tot = sum(seg.pain_affinity)
+        if tot <= 0:
+            return 0.0
+        got = 0.0
+        for p, w in enumerate(seg.pain_affinity):
+            got += w * self.built.get(self.w.solves[p], 0.0)
+        return got / tot
+
+    def _apply_churn(self):
+        """Per-segment churn responsive to price (vs segment wtp) and quality (vs bar)."""
+        cfg = self.cfg
+        for s in list(self.base.keys()):
+            if self.w.segments and 0 <= s < len(self.w.segments):
+                seg = self.w.segments[s]
+                seg_wtp = math.exp(seg.wtp_mu)        # segment median willingness-to-pay
+                price_pressure = cfg.churn_price_coef * max(0.0, (self.price - seg_wtp) / seg_wtp)
+                quality_gap = cfg.churn_quality_coef * max(0.0, seg.quality_bar - self._seg_avg_ff(seg))
+                churn_eff = min(0.95, seg.churn_base + price_pressure + quality_gap)
+            else:
+                churn_eff = cfg.churn_base            # flat churn when segments are off (ablation)
+            self.base[s] *= (1.0 - churn_eff)
 
 
 # ----------------------------- helpers -----------------------------
@@ -314,11 +508,29 @@ def best_price_for(world: World, built: dict, target_pains, sample=600):
                 if fe in built:
                     ff += built[fe]
             ff = ff / len(u.pains) if u.pains else 0.0
-            pb = sigmoid(cfg.alpha * ff + cfg.beta * (u.wtp - price) / u.wtp - cfg.gamma)
+            beta_u = u.elasticity if (cfg.use_elasticity and u.elasticity is not None) else cfg.beta
+            pb = sigmoid(cfg.alpha * ff + beta_u * (u.wtp - price) / u.wtp - cfg.gamma)
             val += pb * price
         if val > best_val:
             best_val, best_price = val, price
     return best_price
+
+
+def _best_channel(world: World, target_pains):
+    """Resonance-weighted modal channel_pref among a target's matching users (the
+    channel that maximizes conversion under the funnel). 0 when channels are off."""
+    if not world.segments:
+        return 0
+    tset = set(target_pains)
+    pool = set()
+    for p in target_pains:
+        pool.update(world.users_by_pain.get(p, []))
+    wt = {}
+    for idx in pool:
+        u = world.users[idx]
+        if u.pains:
+            wt[u.channel_pref] = wt.get(u.channel_pref, 0.0) + len(tset & u.pains) / len(u.pains)
+    return max(wt, key=wt.get) if wt else 0
 
 
 # ----------------------------- policies -----------------------------
@@ -342,7 +554,9 @@ class NaivePolicy:
                 f = self.rng.choice(candidates)
         target = set(self.rng.sample(range(cfg.n_pains), 3))
         spend = min(700.0, max(0.0, obs["cash"] * 0.4))
-        return {"build": f, "price": 50.0, "campaigns": [{"target": target, "spend": spend}]}
+        channel = self.rng.randrange(cfg.n_channels) if cfg.use_channels else 0  # no extra draw in v1
+        return {"build": f, "price": 50.0,
+                "campaigns": [{"target": target, "spend": spend, "channel": channel}]}
 
 
 class OraclePolicy:
@@ -377,7 +591,10 @@ class OraclePolicy:
         price = best_price_for(self.w, built_map, target)
         reserve = self.w.cfg.build_cost if f is not None else 0.0
         spend = max(0.0, obs["cash"] - reserve)
-        return {"build": f, "price": price, "campaigns": [{"target": target, "spend": spend}]}
+        chan_pain = max(target, key=lambda p: self.w.pain_popularity[p]) if target else self.top_pains[0]
+        channel = _best_channel(self.w, {chan_pain})   # best channel for the biggest targeted segment
+        return {"build": f, "price": price,
+                "campaigns": [{"target": target, "spend": spend, "channel": channel}]}
 
 
 class ScriptedExperimenter:
@@ -391,10 +608,12 @@ class ScriptedExperimenter:
         self.rng = random.Random(seed + 13)
 
     def reset(self):
-        self.pain_demand = {}        # pain -> observed tries (popularity proxy)
+        self.pain_demand = {}        # pain -> audience (demand proxy, channel-free)
         self.solved = {}             # pain -> feature (discovered)
         self.tried_features = set()
-        self.phase = "probe"
+        self.best_channel = {}       # pain -> channel with the most observed tries
+        self._best_ch_tries = {}
+        self._last_built = None
 
     def act(self, env, obs):
         cfg = self.w.cfg
@@ -406,20 +625,30 @@ class ScriptedExperimenter:
             if len(tgt) == 1:
                 p = tgt[0]
                 if obs["round"] <= 1:
-                    self.pain_demand[p] = c["audience"]   # audience size = demand proxy
-                if c["purchases"] > 0.5:
-                    # the most recently built feature solves this pain
-                    if self._last_built is not None:
-                        self.solved[p] = self._last_built
+                    self.pain_demand[p] = c["audience"]   # audience = demand proxy (channel-free)
+                    ch = c.get("channel", 0)              # learn channel<->segment from tries
+                    if c["tries"] > self._best_ch_tries.get(p, -1.0):
+                        self._best_ch_tries[p] = c["tries"]
+                        self.best_channel[p] = ch
+                if c["purchases"] > 0.5 and self._last_built is not None:
+                    self.solved[p] = self._last_built     # the new feature solves this pain
         self._last_built = None
 
-        # Phase 1 (round 0): probe demand with cheap single-pain campaigns
+        def _ch(p):
+            return self.best_channel.get(p, 0)
+
+        # Phase 1 (round 0): probe demand; with channels, probe each pain x channel cheaply
         if obs["round"] == 0:
-            campaigns = [{"target": {p}, "spend": 10.0} for p in range(cfg.n_pains)]
+            if cfg.use_channels:
+                campaigns = [{"target": {p}, "spend": 10.0, "channel": ch}
+                             for p in range(cfg.n_pains) for ch in range(cfg.n_channels)]
+            else:
+                campaigns = [{"target": {p}, "spend": 10.0} for p in range(cfg.n_pains)]
             return {"build": None, "price": 50.0, "campaigns": campaigns}
 
         top_pains = sorted(self.pain_demand, key=self.pain_demand.get, reverse=True)
         unsolved_top = [p for p in top_pains if p not in self.solved]
+        top_solved = max(self.solved, key=lambda x: self.pain_demand.get(x, 0)) if self.solved else None
 
         # Phase 2: build a new feature and test it against unsolved top pains
         rounds_left = cfg.horizon - obs["round"]
@@ -432,28 +661,31 @@ class ScriptedExperimenter:
             if f is not None:
                 self.tried_features.add(f)
                 self._last_built = f
-                # test the new feature against the top unsolved pains by audience, each
+                # test the new feature against top unsolved pains, each on its best channel,
                 # separately so purchases attribute cleanly -> every build is informative
                 test_targets = unsolved_top[:6]
-                campaigns = [{"target": {p}, "spend": 60.0} for p in test_targets]
+                campaigns = [{"target": {p}, "spend": 60.0, "channel": _ch(p)} for p in test_targets]
                 # also keep earning on already-solved pains
                 if self.solved:
                     campaigns.append({"target": set(self.solved.keys()),
-                                      "spend": max(0.0, obs["cash"] * 0.4)})
+                                      "spend": max(0.0, obs["cash"] * 0.4),
+                                      "channel": _ch(top_solved)})
                 return {"build": f, "price": 50.0, "campaigns": campaigns}
 
-        # Phase 3: exploit solved popular pains
+        # Phase 3: exploit solved popular pains (on the top pain's best channel)
         if self.solved:
             target = set(self.solved.keys())
             built_map = {x: 1.0 for x in built}
             price = best_price_for(self.w, built_map, target)
             spend = max(0.0, obs["cash"])
-            return {"build": None, "price": price, "campaigns": [{"target": target, "spend": spend}]}
+            return {"build": None, "price": price,
+                    "campaigns": [{"target": target, "spend": spend, "channel": _ch(top_solved)}]}
 
         # fallback: nothing discovered, target best-demand pains broadly
         target = set(top_pains[:3]) if top_pains else {0, 1, 2}
+        ch = _ch(top_pains[0]) if top_pains else 0
         return {"build": None, "price": 50.0,
-                "campaigns": [{"target": target, "spend": min(500.0, obs["cash"])}]}
+                "campaigns": [{"target": target, "spend": min(500.0, obs["cash"]), "channel": ch}]}
 
 
 # ----------------------------- run helpers -----------------------------
@@ -468,6 +700,75 @@ def run_episode(world, policy):
         action = policy.act(env, obs)
         obs, reward, done, _ = env.step(action)
     return env.total_profit
+
+
+def subworld(world: World, user_indices, cfg: Config = None) -> World:
+    """A World restricted to a subset of users (same solves/segments/names; cfg override
+    lets the grader scale costs to the subset)."""
+    cfg = cfg or world.cfg
+    users = [world.users[i] for i in user_indices]
+    ubp = {p: [] for p in range(cfg.n_pains)}
+    for idx, u in enumerate(users):
+        for p in u.pains:
+            ubp[p].append(idx)
+    pop = [len(ubp[p]) for p in range(cfg.n_pains)]
+    return World(cfg, world.solves, users, ubp, pop, world.pain_names, world.pain_keywords,
+                 world.feature_names, world.feature_keywords, segments=world.segments)
+
+
+def replay_profit(world: World, user_indices, action_log, spend_scale=1.0) -> float:
+    """Execution-based grading: replay an action log on a subset of users through the
+    REAL funnel — channels, elasticity, quality gate, and retention all stay consistent
+    with the live env (no hand-rolled funnel copy to drift). spend/build are scaled to the
+    subset size; bankruptcy/horizon are disabled so the full log always replays."""
+    scfg = replace(world.cfg, build_cost=world.cfg.build_cost * spend_scale,
+                   starting_cash=1e12, horizon=len(action_log) + 1)
+    env = FirmEnv(subworld(world, user_indices, scfg))
+    env.reset()
+    for entry in action_log:
+        camps = [{"target": set(c.get("target", set())),
+                  "spend": float(c.get("spend", 0.0)) * spend_scale,
+                  "channel": c.get("channel", 0),
+                  "craft": c.get("craft", 1.0)}
+                 for c in entry.get("campaigns", [])]
+        env.step({"build": entry.get("build"),
+                  "price": entry.get("price", env.price), "campaigns": camps})
+        b = entry.get("build")                      # honor NL build quality (next-round, like live)
+        if b is not None and entry.get("quality", 1.0) != 1.0:
+            env.built[b] = entry["quality"]
+    return env.total_profit
+
+
+def ablation_gate(seeds=(1, 2, 3, 4, 5)):
+    """The reactive-fix bisection tool. Runs naive/scripted/oracle under v1, each single
+    Phase A latent (on top of segments), and full. Gate PASS iff naive < scripted < oracle;
+    WARN if scripted > oracle (reference too weak); FAIL otherwise (the latent broke
+    discovery for the scripted experimenter -> fix its observation/strategy)."""
+    BUD = dict(horizon=16, starting_cash=18000.0)   # uniform scaled budget for Phase A rows (C2)
+    configs = [
+        ("v1", Config()),
+        ("+segments", Config(use_segments=True, **BUD)),
+        ("+channels", Config(use_segments=True, use_channels=True, **BUD)),
+        ("+elasticity", Config(use_segments=True, use_elasticity=True, **BUD)),
+        ("+quality_bar", Config(use_segments=True, use_quality_bar=True, **BUD)),
+        ("+retention", Config(use_segments=True, use_retention=True, **BUD)),
+        ("full", Config.phase_a()),
+    ]
+    rows = []
+    print(f"{'config':>13} | {'naive':>11} | {'scripted':>11} | {'oracle':>11} | {'gate':>5}")
+    print("-" * 66)
+    for name, cfg in configs:
+        nl, sl, ol = [], [], []
+        for s in seeds:
+            world = generate_world(s, cfg)
+            nl.append(run_episode(world, NaivePolicy(world, s)))
+            sl.append(run_episode(world, ScriptedExperimenter(world, s)))
+            ol.append(run_episode(world, OraclePolicy(world)))
+        nv, sc, orc = sum(nl) / len(nl), sum(sl) / len(sl), sum(ol) / len(ol)
+        gate = "WARN" if sc > orc else ("PASS" if nv < sc else "FAIL")
+        rows.append({"config": name, "naive": nv, "scripted": sc, "oracle": orc, "gate": gate})
+        print(f"{name:>13} | {nv:>11.0f} | {sc:>11.0f} | {orc:>11.0f} | {gate:>5}")
+    return rows
 
 
 def main():

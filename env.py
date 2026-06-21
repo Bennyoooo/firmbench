@@ -35,7 +35,7 @@ from hud import Environment
 from hud.capabilities import Capability
 from hud.graders import EvaluationResult
 
-from sim import Config, generate_world, FirmEnv, sigmoid
+from sim import Config, generate_world, FirmEnv, sigmoid, OraclePolicy, run_episode
 from scorer import ScoreConfig, score_ad_copy, score_feature_spec
 from renderer import render_ad_card, render_feature_page
 
@@ -49,7 +49,7 @@ env = Environment(name="firmbench")
 
 # ── per-episode state (reset at the top of each template run) ────────
 
-_CFG = Config()
+_CFG = Config.phase_a()      # deployed env runs the full Phase A market
 _WORLD = None
 _ENV = None
 _ROUND_ACTIONS = []          # per-round action log for verifier replay
@@ -59,85 +59,27 @@ _EPISODE_SEED = 42
 _ARTIFACTS_DIR = None        # set per-episode: artifacts/{seed}/
 _SCORE_CFG = None            # scorer config (fast_mode unless env vars set)
 
-# ── verifier (replays on held-out users) ─────────────────────────────
-
-def _split_users(world):
-    n = len(world.users)
-    cutoff = int(n * (1 - _HOLDOUT_FRAC))
-    return list(range(cutoff)), list(range(cutoff, n))
-
-
-def _replay_on_holdout(world, holdout_indices, action_log):
-    """Replay the full action log on held-out users. Uses craft/quality from the
-    action log when available (NL mode); defaults to 1.0 (structured mode)."""
-    cfg = world.cfg
-    ho_by_pain = {p: [] for p in range(cfg.n_pains)}
-    for idx in holdout_indices:
-        for p in world.users[idx].pains:
-            ho_by_pain[p].append(idx)
-
-    built = {}
-    total_profit = 0.0
-    for entry in action_log:
-        f = entry.get("build")
-        if f is not None:
-            quality = entry.get("quality", 1.0)
-            built[f] = quality
-        price = entry["price"]
-        round_revenue = 0.0
-        round_spend = 0.0
-        for camp in entry.get("campaigns", []):
-            target = set(camp["target"])
-            craft = camp.get("craft", 1.0)
-            spend = camp["spend"] * _HOLDOUT_FRAC
-            round_spend += spend
-            pool = set()
-            for p in target:
-                pool.update(ho_by_pain.get(p, []))
-            pool = sorted(pool)
-            impressions = int(spend * cfg.impressions_per_dollar)
-            reached = pool[:impressions]
-            purchases = 0.0
-            for idx in reached:
-                u = world.users[idx]
-                resonance = len(target & u.pains) / len(u.pains) if u.pains else 0.0
-                p_try = craft * resonance
-                ff = 0.0
-                if u.pains:
-                    for p in u.pains:
-                        fe = world.solves[p]
-                        if fe in built:
-                            ff += built[fe]
-                    ff /= len(u.pains)
-                p_buy = sigmoid(cfg.alpha * ff + cfg.beta * (u.wtp - price) / u.wtp - cfg.gamma)
-                purchases += p_try * p_buy
-            round_revenue += purchases * price
-        build_cost = cfg.build_cost * _HOLDOUT_FRAC if f is not None else 0.0
-        total_profit += round_revenue - round_spend - build_cost
-    return total_profit
-
+# ── grading: discovery efficiency = profit / oracle (no user holdout) ─────────
+# In an execution-based env the agent can't fake its numbers, and the latent market
+# structure is shared across users — so a user-level holdout adds nothing here.
+# Generalization is measured at the SEED level (domain randomization + held-out eval
+# seeds). Reward = profit / oracle clipped to [0,1] (the design's "regret vs oracle").
 
 def _grade_episode():
-    _, holdout = _split_users(_WORLD)
-    holdout_profit = _replay_on_holdout(_WORLD, holdout, _ROUND_ACTIONS)
-    reported = _ENV.total_profit
-    reported_scaled = reported * _HOLDOUT_FRAC
-    gap = abs(reported_scaled - holdout_profit) / (abs(holdout_profit) + 100.0)
-    flagged = gap > 0.15
-    reward = holdout_profit
-    if flagged:
-        reward -= 0.3 * abs(holdout_profit)
-    normalized = max(0.0, min(1.0, reward / 30000.0))
+    profit = _ENV.total_profit
+    oracle_profit = run_episode(_WORLD, OraclePolicy(_WORLD))
+    disc_eff = profit / oracle_profit if oracle_profit > 0 else 0.0
+    reward = max(0.0, min(1.0, disc_eff))
+    beat_oracle = disc_eff > 1.0          # C3 guard: reference no longer a valid ceiling
 
-    # write manifest if artifacts dir exists
     if _ARTIFACTS_DIR:
         manifest = {
             "seed": _EPISODE_SEED,
             "rounds": len(_ROUND_ACTIONS),
-            "final_reward": round(normalized, 4),
-            "holdout_profit": round(holdout_profit, 2),
-            "reported_profit": round(reported, 2),
-            "flagged": flagged,
+            "final_reward": round(reward, 4),
+            "profit": round(profit, 2),
+            "oracle_profit": round(oracle_profit, 2),
+            "disc_eff": round(disc_eff, 3),
             "pain_names": _WORLD.pain_names,
             "feature_names": _WORLD.feature_names,
             "actions": _ROUND_ACTIONS,
@@ -148,12 +90,11 @@ def _grade_episode():
                                         encoding="utf-8")
         logger.info("Manifest written to %s", manifest_path)
 
-    return normalized, {
-        "holdout_profit": round(holdout_profit, 2),
-        "reported_profit": round(reported, 2),
-        "gap": round(gap, 4),
-        "flagged": flagged,
-        "raw_reward": round(reward, 2),
+    return reward, {
+        "profit": round(profit, 2),
+        "oracle_profit": round(oracle_profit, 2),
+        "disc_eff": round(disc_eff, 3),
+        "beat_oracle": beat_oracle,
     }
 
 
@@ -190,7 +131,7 @@ def _feature_artifact_path(feature_id: int) -> str:
 
 
 async def probe_market(target_pains: list[int], spend: float,
-                       ad_copy: str = None) -> dict[str, Any]:
+                       ad_copy: str = None, channel: int = 0) -> dict[str, Any]:
     """Run a cheap discovery campaign to learn about demand. Returns audience size,
     impressions, tries, purchases, and revenue for the targeted pain points.
 
@@ -199,11 +140,12 @@ async def probe_market(target_pains: list[int], spend: float,
         spend: dollars to spend on this probe.
         ad_copy: optional ad copy text (headline | body | CTA). When provided,
                  the copy is scored for quality and targeting is extracted from it.
+        channel: marketing channel id (0-2); segments differ in which channel reaches them.
     """
     _ensure_round_action()
 
     craft = 1.0
-    camp_entry = {"spend": float(spend)}
+    camp_entry = {"spend": float(spend), "channel": int(channel)}
 
     if ad_copy and _WORLD:
         scored = score_ad_copy(ad_copy, _WORLD, _SCORE_CFG)
@@ -231,14 +173,14 @@ async def probe_market(target_pains: list[int], spend: float,
 
     camp_entry["target"] = sorted(target)
     _CURRENT_ROUND_ACTION["campaigns"].append(camp_entry)
-    result = _ENV._run_campaign(target, float(spend))
+    result = _ENV._run_campaign(target, float(spend), channel=int(channel), craft=craft)
     # Store campaign results in the action log for replay viewer
     camp_entry["audience"] = result.get("audience", 0)
     camp_entry["impressions"] = result.get("impressions", 0)
     camp_entry["tries"] = result.get("tries", 0)
     camp_entry["purchases"] = result.get("purchases", 0)
     camp_entry["revenue"] = result.get("revenue", 0)
-    out = {k: v for k, v in result.items() if k != "spend"}
+    out = {k: v for k, v in result.items() if not k.startswith("_") and k != "spend"}
     if craft != 1.0:
         out["craft_score"] = craft
     return out
@@ -311,7 +253,7 @@ async def set_price(price: float) -> dict[str, Any]:
 
 
 async def run_campaign(target_pains: list[int], spend: float,
-                       ad_copy: str = None) -> dict[str, Any]:
+                       ad_copy: str = None, channel: int = 0) -> dict[str, Any]:
     """Run a full marketing campaign. Like probe_market but intended for exploitation
     (higher spend). Returns audience, impressions, tries, purchases, and revenue.
 
@@ -320,7 +262,7 @@ async def run_campaign(target_pains: list[int], spend: float,
         spend: dollars to spend.
         ad_copy: optional ad copy text (headline | body | CTA).
     """
-    return await probe_market(target_pains, spend, ad_copy=ad_copy)
+    return await probe_market(target_pains, spend, ad_copy=ad_copy, channel=channel)
 
 
 async def get_state() -> dict[str, Any]:
@@ -356,7 +298,8 @@ async def end_round() -> dict[str, Any]:
     obs, profit, done, _ = _ENV.step({
         "build": action.get("build"),
         "price": action.get("price", _ENV.price),
-        "campaigns": [{"target": set(c["target"]), "spend": c["spend"]}
+        "campaigns": [{"target": set(c["target"]), "spend": c["spend"],
+                       "channel": c.get("channel", 0), "craft": c.get("craft", 1.0)}
                       for c in action.get("campaigns", [])],
     })
 

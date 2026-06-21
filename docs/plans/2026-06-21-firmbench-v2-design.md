@@ -1,8 +1,24 @@
 # FirmBench v2 — Integrated Expansion Design
 
-> **Status:** Phase A locked (validated via brainstorming, 2026-06-21).
-> Phases B/C/D specified; key forks marked **[OPEN]**.
+> **Status:** ⚠️ **Did NOT pass adversarial review** — see
+> `firmbench-v2-design-review-1.md`. Under revision; do not build from this yet.
 > **Date:** 2026-06-21
+>
+> **Corrections (this doc was drafted against a STALE read of the code):**
+> - The NL artifact + **LLM judge-as-translator already exists** (`scorer.py`,
+>   wired into `env.py`). The "no LLM judge anywhere" and Phase C "first LLM in the
+>   stack" claims are **wrong**.
+> - `impressions_per_dollar = 0.2` in code (not 0.1). Current learnability:
+>   naive **+4,035**, scripted 69,783, oracle 138,570 (disc.eff 50%) — "naive loses
+>   money" is stale.
+> - **Critical issues to resolve before building:** (C1) Phase A bundles 5
+>   confounded latents → discovery degrades to luck; (C2) experiment space ≫
+>   $6k/H=10 budget; (C3) regret-vs-oracle invalid once the oracle is greedy;
+>   (C4) the real unbuilt piece is Job 2, whose honesty tripwire needs a paired
+>   counterfactual replay (or should be cut); (C5) LLM-in-reward ⇒ training is
+>   non-deterministic. Also a live bug: **craft is applied in holdout grading but
+>   not in the live funnel** (`env.py:104` vs `sim.py:252`) → honest NL agents
+>   self-flag the cheat tripwire.
 
 ## Goal
 
