@@ -177,13 +177,13 @@ def _make_segments(rng, cfg):
     return segs
 
 
-def _resample_users_from_segments(rng, cfg, segments):
+def _resample_users_from_segments(rng, cfg, segments, n_users=None):
     """Hybrid population: persona backbone (pains/channel/quality_bar) + per-user
     noise on wtp/elasticity."""
     pains = list(range(cfg.n_pains))
     seg_weights = [s.weight for s in segments]
     users = []
-    for _ in range(cfg.n_users):
+    for _ in range(n_users or cfg.n_users):
         s_idx = _weighted_pick(rng, range(cfg.n_segments), seg_weights)
         seg = segments[s_idx]
         k = rng.choice([1, 2, 3])
@@ -254,6 +254,10 @@ def generate_world(seed: int, cfg: Config = None) -> World:
     cfg = cfg or Config()
     rng = random.Random(seed)
 
+    # Randomize population size per seed (±40% around cfg.n_users)
+    # Makes each world a different scale challenge
+    n_users_actual = rng.randint(int(cfg.n_users * 0.6), int(cfg.n_users * 1.4))
+
     pains = list(range(cfg.n_pains))
     features = list(range(cfg.n_features))
 
@@ -270,7 +274,7 @@ def generate_world(seed: int, cfg: Config = None) -> World:
         weight_by_pain[p] = 1.0 / (rank_index + 1)
 
     users = []
-    for _ in range(cfg.n_users):
+    for _ in range(n_users_actual):
         k = rng.choice([1, 2, 3])
         up = _weighted_sample_without_replacement(pains, weight_by_pain, k, rng)
         wtp = rng.lognormvariate(cfg.wtp_mu, cfg.wtp_sigma)
@@ -287,7 +291,7 @@ def generate_world(seed: int, cfg: Config = None) -> World:
     segments = None
     if cfg.use_segments:
         segments = _make_segments(rng, cfg)
-        users = _resample_users_from_segments(rng, cfg, segments)
+        users = _resample_users_from_segments(rng, cfg, segments, n_users=n_users_actual)
         users_by_pain = {p: [] for p in pains}
         for idx, u in enumerate(users):
             for p in u.pains:
@@ -548,6 +552,54 @@ def _best_channel(world: World, target_pains):
         if u.pains:
             wt[u.channel_pref] = wt.get(u.channel_pref, 0.0) + len(tset & u.pains) / len(u.pains)
     return max(wt, key=wt.get) if wt else 0
+
+
+def _churn_eff_at(world: World, user, price: float) -> float:
+    """Churn rate for `user` at `price` assuming a fully-built product (ff=1 -> quality_gap=0).
+    Mirrors FirmEnv._apply_churn. Used by theoretical_max."""
+    cfg = world.cfg
+    segs = world.segments
+    if segs and 0 <= user.segment_id < len(segs):
+        seg = segs[user.segment_id]
+        seg_wtp = math.exp(seg.wtp_mu)
+        price_pressure = cfg.churn_price_coef * max(0.0, (price - seg_wtp) / seg_wtp)
+        return min(0.95, seg.churn_base + price_pressure)     # quality_gap = 0 at ff=1
+    return cfg.churn_base
+
+
+def theoretical_max(world: World) -> float:
+    """OPTIMISTIC per-world profit ceiling — a true upper bound, not a policy.
+
+    For each price on the grid, assume the product is fully built (ff=1, free — no build
+    cost/timing) and you can reach exactly the users worth acquiring (perfect targeting; no
+    cash / round / reach-ordering limits). Reach a user iff their expected lifetime value
+    exceeds the per-reach cost; the max over price captures the price<->churn<->conversion
+    coupling. Optimistic on every constraint, so it dominates any real policy — hence reward
+    = profit / theoretical_max lands in [0,1] by construction (no clipping, no 'beat oracle').
+    """
+    cfg = world.cfg
+    reach_cost = 1.0 / cfg.impressions_per_dollar     # cost to reach one user once
+    H = cfg.horizon
+    retention = cfg.use_retention and cfg.subscription
+    best = 0.0
+    for price in cfg.price_grid:
+        total = 0.0
+        for u in world.users:
+            beta_u = u.elasticity if (cfg.use_elasticity and u.elasticity is not None) else cfg.beta
+            p_buy = sigmoid(cfg.alpha * 1.0 + beta_u * (u.wtp - price) / u.wtp - cfg.gamma)
+            if cfg.use_quality_bar:
+                p_buy *= sigmoid(cfg.quality_gate_k * (1.0 - u.quality_bar))   # ff = 1
+            if retention:
+                ce = _churn_eff_at(world, u, price)
+                lifetime = H if ce <= 0 else (1.0 - (1.0 - ce) ** H) / ce      # rounds paid, decayed
+                net = p_buy * price * lifetime - reach_cost                    # reach once -> recur
+            else:
+                net = H * (p_buy * price - reach_cost)                         # one-shot: re-sell each round
+            if net > 0.0:
+                total += net
+        if total > best:
+            best = total
+    return best
 
 
 # ----------------------------- policies -----------------------------

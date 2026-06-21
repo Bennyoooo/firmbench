@@ -1,0 +1,83 @@
+{
+  "seed": 42,
+  "rounds": 10,
+  "final_reward": 0.0,
+  "profit": 0.0,
+  "oracle_profit": 808620.34,
+  "disc_eff": 0.0,
+  "flagged": false,
+  "pain_names": [
+    "poor search",
+    "no notifications",
+    "lack of reporting",
+    "difficult migration",
+    "weak security",
+    "complex pricing",
+    "missing integrations",
+    "data export limitations"
+  ],
+  "feature_names": [
+    "migration toolkit",
+    "analytics suite",
+    "offline sync engine",
+    "notification center",
+    "smart search",
+    "mobile app",
+    "data exporter",
+    "payment dashboard"
+  ],
+  "actions": [
+    {
+      "build": null,
+      "price": 50.0,
+      "campaigns": []
+    },
+    {
+      "build": null,
+      "price": 50.0,
+      "campaigns": []
+    },
+    {
+      "build": null,
+      "price": 50.0,
+      "campaigns": []
+    },
+    {
+      "build": null,
+      "price": 50.0,
+      "campaigns": []
+    },
+    {
+      "build": null,
+      "price": 50.0,
+      "campaigns": []
+    },
+    {
+      "build": null,
+      "price": 50.0,
+      "campaigns": []
+    },
+    {
+      "build": null,
+      "price": 50.0,
+      "campaigns": []
+    },
+    {
+      "build": null,
+      "price": 50.0,
+      "campaigns": []
+    },
+    {
+      "build": null,
+      "price": 50.0,
+      "campaigns": []
+    },
+    {
+      "build": null,
+      "price": 50.0,
+      "campaigns": []
+    }
+  ],
+  "theoretical_max": 1606942.11,
+  "pct_of_max": 0.0
+}

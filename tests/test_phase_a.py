@@ -1,7 +1,7 @@
 # tests/test_phase_a.py — run from repo root: python3 tests/test_phase_a.py
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # CR1: repo root on path
-from sim import (Config, generate_world, run_episode, FirmEnv, replay_profit,
+from sim import (Config, generate_world, run_episode, FirmEnv, replay_profit, theoretical_max,
                  NaivePolicy, ScriptedExperimenter, OraclePolicy)
 
 
@@ -211,6 +211,23 @@ def test_replay_profit_deterministic():
     _, log = _play_capturing_log(w, ScriptedExperimenter(w, 2))
     n = len(w.users); ho = list(range(int(n * 0.8), n))
     assert replay_profit(w, ho, log, 0.2) == replay_profit(w, ho, log, 0.2)
+
+
+# ----------------------------- theoretical_max ceiling -----------------------------
+
+def test_theoretical_max_is_a_valid_ceiling():
+    # the normalizer must be a true upper bound: no policy may exceed it, on any config/seed.
+    configs = [Config(),                                                       # v1
+              Config(use_segments=True, use_retention=True, horizon=16, starting_cash=18000.0),
+              Config.phase_a()]                                                # full
+    for cfg in configs:
+        for s in range(100, 106):
+            w = generate_world(s, cfg)
+            tmax = theoretical_max(w)
+            assert tmax > 0
+            assert run_episode(w, OraclePolicy(w)) <= tmax + 1e-6, (cfg, s, "oracle > ceiling")
+            assert run_episode(w, ScriptedExperimenter(w, s)) <= tmax + 1e-6, (cfg, s, "scripted > ceiling")
+            assert run_episode(w, NaivePolicy(w, s)) <= tmax + 1e-6, (cfg, s, "naive > ceiling")
 
 
 if __name__ == "__main__":

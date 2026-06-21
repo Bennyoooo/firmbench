@@ -49,15 +49,31 @@ canvas{width:100%!important;height:100%!important}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
 .dot-green{background:var(--green)}.dot-red{background:var(--red)}.dot-gold{background:var(--gold)}
 #loading{text-align:center;padding:80px;color:var(--dim)}
+.model-badge{display:inline-block;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;
+  background:rgba(102,126,234,0.15);color:var(--accent);margin-left:8px}
+.leaderboard{margin-bottom:24px}
+.lb-row{display:flex;align-items:center;gap:12px;padding:8px 16px;border-radius:8px;margin-bottom:4px;
+  cursor:pointer;transition:background 0.2s;border:1px solid transparent}
+.lb-row:hover{background:var(--card);border-color:var(--border)}
+.lb-row.active{background:var(--card);border-color:var(--accent)}
+.lb-rank{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;flex-shrink:0}
+.lb-name{flex:1;font-size:14px;font-weight:500}
+.lb-reward{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;width:80px;text-align:right}
+.lb-profit{font-size:12px;color:var(--dim);width:100px;text-align:right}
+.lb-bar{flex:2;height:8px;background:var(--border);border-radius:4px;overflow:hidden;min-width:80px}
+.lb-bar-fill{height:100%;border-radius:4px;transition:width 0.4s ease}
 </style>
 </head>
 <body>
 
 <h1>🏢 FirmBench Replay</h1>
-<p class="subtitle">Step through an agent's market-discovery episode</p>
+<p class="subtitle">Step through an agent's market-discovery episode — compare models side by side</p>
+
+<div id="leaderboard" class="leaderboard"></div>
 
 <div class="controls">
-  <label>Episode: <select id="seedSelect"><option>Loading...</option></select></label>
+  <label>Model: <select id="modelSelect"><option>Loading...</option></select></label>
   <div class="round-nav" id="roundNav"></div>
   <button id="playBtn" onclick="togglePlay()">▶ Play</button>
   <button onclick="prevRound()">← Prev</button>
@@ -67,7 +83,6 @@ canvas{width:100%!important;height:100%!important}
 <div class="status-bar" id="statusBar"></div>
 
 <div class="grid">
-  <!-- Left: artifacts -->
   <div>
     <div class="panel" id="adPanel">
       <div class="panel-header"><span>📢 Ad Campaign</span><span id="adCraft"></span></div>
@@ -78,15 +93,13 @@ canvas{width:100%!important;height:100%!important}
       <div class="panel-body" id="featureContent"><div class="empty">No feature built this round</div></div>
     </div>
   </div>
-
-  <!-- Right: metrics -->
   <div>
     <div class="panel">
       <div class="panel-header">📊 Campaign Results</div>
       <div class="panel-body"><table id="campaignTable"><tbody></tbody></table></div>
     </div>
     <div class="panel" style="margin-top:16px">
-      <div class="panel-header">📈 Profit Over Time</div>
+      <div class="panel-header">📈 Profit Per Round (incl. recurring subscribers)</div>
       <div class="panel-body">
         <div class="chart-container"><canvas id="profitChart"></canvas></div>
       </div>
@@ -109,33 +122,104 @@ let currentRound = 0;
 let playing = false;
 let playInterval = null;
 let profitHistory = [];
+let currentDir = 'artifacts/42';
+let allModels = []; // model runs for seed 42
 
-async function loadSeeds() {
-  // Try to list available manifests
-  const seeds = [];
-  for (let s of [1,2,3,4,5,7,42,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,123]) {
+const MODEL_NAMES = {
+  'gpt-5-5': 'GPT-5.5', 'gpt-5': 'GPT-5', 'gpt-5-mini': 'GPT-5 Mini', 'gpt-4o': 'GPT-4o',
+  'claude': 'Claude Sonnet 4.6', 'claude-opus-4-8': 'Claude Opus 4.8',
+  'gemini': 'Gemini 3.5 Flash', 'deepseek-v4-0324': 'DeepSeek V4',
+  'glm-5-1': 'GLM 5.1', '42': 'Latest Run',
+  'qwen3-8b-base': 'Qwen3-8B (base · epoch 0)', 'qwen3-8b-grpo-ep1': 'Qwen3-8B (GRPO · epoch 1)',
+  'qwen3-8b-grpo': 'Qwen3-8B (GRPO · epoch 2)',
+  'oracle': 'Oracle (ceiling)', 'scripted': 'Scripted experimenter', 'naive': 'Naive'
+};
+const RANK_COLORS = ['#f59e0b','#a0a0a0','#cd7f32','#667eea','#667eea','#667eea','#667eea','#667eea'];
+
+async function discoverModels() {
+  allModels = [];
+  // Only look for model-specific directories: artifacts/42_<model>
+  const modelCandidates = [
+    '42_gpt-5-5', '42_gpt-5', '42_gpt-5-mini', '42_gpt-4o',
+    '42_claude', '42_claude-opus-4-8', '42_gemini',
+    '42_deepseek-v4-0324', '42_glm-5-1',
+    '42_qwen3-8b-grpo', '42_qwen3-8b-grpo-ep1', '42_qwen3-8b-base',
+    '42_oracle', '42_scripted', '42_naive',
+  ];
+  // Also check artifacts/42 as "Latest Run"
+  modelCandidates.unshift('42');
+
+  for (const c of modelCandidates) {
     try {
-      const r = await fetch(`artifacts/${s}/manifest.json`);
-      if (r.ok) seeds.push(s);
+      const r = await fetch(`artifacts/${c}/manifest.json`);
+      if (!r.ok) continue;
+      const m = await r.json();
+      const modelKey = c.startsWith('42_') ? c.substring(3) : c;
+      const name = MODEL_NAMES[modelKey] || modelKey;
+      allModels.push({
+        dir: `artifacts/${c}`,
+        key: modelKey,
+        name: name,
+        reward: m.final_reward || 0,
+        profit: m.profit || m.reported_profit || 0,
+        disc_eff: m.disc_eff || 0,
+        rounds: m.rounds || 0,
+      });
     } catch(e) {}
   }
-  const sel = document.getElementById('seedSelect');
-  sel.innerHTML = '';
-  if (seeds.length === 0) {
-    sel.innerHTML = '<option>No episodes found</option>';
-    return;
+
+  // Filter out zero-round entries and duplicates, sort by reward
+  allModels = allModels.filter(m => m.rounds > 0);
+  allModels.sort((a, b) => b.reward - a.reward);
+  renderLeaderboard();
+  populateModelSelect();
+
+  if (allModels.length > 0) {
+    loadModel(allModels[0].dir);
   }
-  seeds.forEach(s => { const o = document.createElement('option'); o.value=s; o.textContent=`Seed ${s}`; sel.appendChild(o); });
-  sel.onchange = () => loadEpisode(parseInt(sel.value));
-  loadEpisode(seeds[0]);
 }
 
-async function loadEpisode(seed) {
+function renderLeaderboard() {
+  const el = document.getElementById('leaderboard');
+  if (allModels.length <= 1) { el.innerHTML = ''; return; }
+  const maxReward = Math.max(...allModels.map(m => m.reward), 0.001);
+
+  el.innerHTML = '<h3 style="font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">🏆 Leaderboard (click to view replay)</h3>' +
+    allModels.filter(m => m.reward > 0 || m.rounds > 0).map((m, i) => `
+      <div class="lb-row${m.dir === currentDir ? ' active' : ''}" onclick="loadModel('${m.dir}')">
+        <div class="lb-rank" style="background:${RANK_COLORS[i] || 'var(--border)'}22;color:${RANK_COLORS[i] || 'var(--dim)'}">${i+1}</div>
+        <div class="lb-name">${esc(m.name)}</div>
+        <div class="lb-bar"><div class="lb-bar-fill" style="width:${m.reward/maxReward*100}%;background:${i===0?'var(--gold)':i===1?'var(--accent)':'var(--dim)'}"></div></div>
+        <div class="lb-reward" style="color:${m.reward > 0 ? 'var(--green)' : 'var(--dim)'}">${(m.disc_eff*100).toFixed(1)}%</div>
+        <div class="lb-profit">${m.profit > 0 ? '$'+m.profit.toLocaleString(undefined,{maximumFractionDigits:0}) : '—'}</div>
+      </div>`).join('');
+}
+
+function populateModelSelect() {
+  const sel = document.getElementById('modelSelect');
+  sel.innerHTML = '';
+  allModels.forEach(m => {
+    const o = document.createElement('option');
+    o.value = m.dir;
+    o.textContent = `${m.name} (${(m.disc_eff*100).toFixed(1)}%)`;
+    sel.appendChild(o);
+  });
+  sel.onchange = () => loadModel(sel.value);
+}
+
+async function loadModel(dir) {
+  currentDir = dir;
   document.getElementById('loading').style.display = 'none';
-  const r = await fetch(`artifacts/${seed}/manifest.json`);
+  const r = await fetch(`${dir}/manifest.json`);
   manifest = await r.json();
   currentRound = 0;
   profitHistory = [];
+
+  // Update select
+  document.getElementById('modelSelect').value = dir;
+
+  // Update leaderboard active state
+  renderLeaderboard();
   buildRoundNav();
   renderRound();
 }
@@ -157,20 +241,28 @@ function renderRound() {
   const action = manifest.actions[currentRound];
   if (!action) return;
 
-  // Status bar
-  let cumProfit = 0;
+  // Find current model name
+  const modelEntry = allModels.find(m => m.dir === currentDir);
+  const modelName = modelEntry ? modelEntry.name : currentDir;
+
+  // Use manifest-level total profit (includes subscription revenue)
+  const totalProfit = manifest.profit || manifest.reported_profit || 0;
+
+  // Campaign-only cumulative (for the chart — what's visible per-round)
+  let cumCampaignPL = 0;
   for (let i = 0; i <= currentRound; i++) {
     const a = manifest.actions[i];
-    if (a && a.campaigns) a.campaigns.forEach(c => { cumProfit += (c.revenue||0) - (c.spend||0); });
-    if (a && a.build !== null && a.build !== undefined) cumProfit -= 300;
+    if (a && a.campaigns) a.campaigns.forEach(c => { cumCampaignPL += (c.revenue||0) - (c.spend||0); });
+    if (a && a.build !== null && a.build !== undefined) cumCampaignPL -= 300;
   }
 
   const sb = document.getElementById('statusBar');
   sb.innerHTML = `
+    <div class="status-item"><span class="model-badge">${esc(modelName)}</span></div>
     <div class="status-item"><span class="dot dot-gold"></span> Round ${currentRound+1}/${manifest.rounds}</div>
-    <div class="status-item">💰 Cumulative: <span class="${cumProfit >= 0 ? 'positive' : 'negative'}">$${cumProfit.toFixed(0)}</span></div>
-    <div class="status-item">🎯 Reward: ${manifest.final_reward.toFixed(3)}</div>
-    <div class="status-item">${manifest.flagged ? '<span class="dot dot-red"></span> Flagged' : '<span class="dot dot-green"></span> Clean'}</div>
+    <div class="status-item">💰 Total Profit: <span class="${totalProfit >= 0 ? 'positive' : 'negative'}">$${totalProfit.toLocaleString(undefined,{maximumFractionDigits:0})}</span></div>
+    <div class="status-item">🎯 Discovery: ${(manifest.disc_eff*100||0).toFixed(1)}%</div>
+    <div class="status-item">${(manifest.flagged||false) ? '<span class="dot dot-red"></span> Flagged' : '<span class="dot dot-green"></span> Clean'}</div>
   `;
 
   // Ad panel
@@ -180,11 +272,13 @@ function renderRound() {
   if (camps.length > 0 && camps.some(c => c.ad_copy || c.artifact_path)) {
     const c = camps.find(c => c.ad_copy || c.artifact_path) || camps[0];
     if (c.artifact_path) {
+      // Remap artifact path to current model directory
+      const artPath = remapArtifactPath(c.artifact_path);
       adEl.innerHTML = `<iframe class="artifact-frame" srcdoc="Loading..."></iframe>`;
-      fetch(c.artifact_path).then(r=>r.text()).then(html => {
+      fetch(artPath).then(r=>r.text()).then(html => {
         adEl.querySelector('iframe').srcdoc = html;
       }).catch(() => {
-        adEl.innerHTML = `<div class="empty">Ad card not found: ${c.artifact_path}</div>`;
+        adEl.innerHTML = `<div class="empty">Ad card not found</div>`;
       });
     } else if (c.ad_copy) {
       adEl.innerHTML = `<div style="padding:8px;color:var(--dim);font-style:italic">${esc(c.ad_copy)}</div>`;
@@ -205,8 +299,9 @@ function renderRound() {
     const fid = action.build;
     const fname = manifest.feature_names ? manifest.feature_names[fid] : `Feature ${fid}`;
     if (action.feature_artifact_path) {
+      const artPath = remapArtifactPath(action.feature_artifact_path);
       featEl.innerHTML = `<iframe class="artifact-frame" srcdoc="Loading..."></iframe>`;
-      fetch(action.feature_artifact_path).then(r=>r.text()).then(html => {
+      fetch(artPath).then(r=>r.text()).then(html => {
         featEl.querySelector('iframe').srcdoc = html;
       }).catch(() => {
         featEl.innerHTML = `<div class="empty">Feature page not found</div>`;
@@ -224,35 +319,40 @@ function renderRound() {
   const tbody = document.querySelector('#campaignTable tbody');
   tbody.innerHTML = '';
   if (camps.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty">No campaigns</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">No campaigns</td></tr>';
   } else {
-    tbody.innerHTML = `<tr><th>Target</th><th>Spend</th><th>Audience</th><th>Tries</th><th>Purchases</th><th>Revenue</th></tr>`;
+    tbody.innerHTML = `<tr><th>Target</th><th>Ch</th><th>Spend</th><th>Audience</th><th>Tries</th><th>Purchases</th><th>Revenue</th></tr>`;
     camps.forEach(c => {
       const targets = (c.target||[]).map(p => {
         const name = manifest.pain_names ? manifest.pain_names[p] : p;
         return `<span class="tag">${name}</span>`;
       }).join('');
+      const ch = c.channel !== undefined ? c.channel : '—';
       tbody.innerHTML += `<tr>
         <td>${targets}</td>
-        <td>$${(c.spend||0).toFixed(0)}</td>
+        <td>${ch}</td>
+        <td>$${(c.spend||0).toLocaleString(undefined,{maximumFractionDigits:0})}</td>
         <td>${c.audience||'—'}</td>
-        <td>${c.tries||'—'}</td>
-        <td>${c.purchases||'—'}</td>
-        <td class="${(c.revenue||0) > (c.spend||0) ? 'positive' : ''}">$${(c.revenue||0).toFixed(0)}</td>
+        <td>${typeof c.tries==='number'?c.tries.toFixed(1):'—'}</td>
+        <td>${typeof c.purchases==='number'?c.purchases.toFixed(1):'—'}</td>
+        <td class="${(c.revenue||0) > (c.spend||0) ? 'positive' : ''}">$${(c.revenue||0).toLocaleString(undefined,{maximumFractionDigits:0})}</td>
       </tr>`;
     });
   }
 
-  // Profit chart (simple bar chart via canvas)
+  // Chart: per-round total profit (includes recurring subscription revenue)
   profitHistory = [];
-  let running = 0;
   for (let i = 0; i < manifest.rounds; i++) {
     const a = manifest.actions[i];
-    let rp = 0;
-    if (a && a.campaigns) a.campaigns.forEach(c => { rp += (c.revenue||0) - (c.spend||0); });
-    if (a && a.build !== null && a.build !== undefined) rp -= 300;
-    running += rp;
-    profitHistory.push(running);
+    // Use stored round_profit if available (includes recurring); fall back to campaign-only
+    if (a && a.round_profit !== undefined) {
+      profitHistory.push({profit: a.round_profit, hasRecurring: true});
+    } else {
+      let spend = 0, revenue = 0;
+      if (a && a.campaigns) a.campaigns.forEach(c => { spend += (c.spend||0); revenue += (c.revenue||0); });
+      if (a && a.build !== null && a.build !== undefined) spend += 300;
+      profitHistory.push({profit: revenue - spend, hasRecurring: false});
+    }
   }
   drawChart();
 
@@ -273,6 +373,12 @@ function renderRound() {
   `;
 }
 
+function remapArtifactPath(originalPath) {
+  // Artifact paths in the manifest are like "artifacts/42/round_01/..."
+  // Remap to the current model's directory
+  return originalPath.replace(/^artifacts\/\d+/, currentDir);
+}
+
 function drawChart() {
   const canvas = document.getElementById('profitChart');
   const ctx = canvas.getContext('2d');
@@ -285,31 +391,35 @@ function drawChart() {
   ctx.clearRect(0, 0, W, H);
 
   if (profitHistory.length === 0) return;
-  const maxV = Math.max(...profitHistory.map(Math.abs), 1);
+  const maxV = Math.max(...profitHistory.map(p => Math.abs(p.profit)), 1);
   const barW = Math.max(8, (W - 60) / profitHistory.length - 4);
-  const zeroY = H * 0.6;
+  const zeroY = H * 0.55;
 
-  // grid
+  // Zero line
   ctx.strokeStyle = '#1e2130'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(40, zeroY); ctx.lineTo(W, zeroY); ctx.stroke();
 
-  profitHistory.forEach((v, i) => {
+  profitHistory.forEach((p, i) => {
     const x = 50 + i * (barW + 4);
-    const barH = (Math.abs(v) / maxV) * (H * 0.5);
-    const y = v >= 0 ? zeroY - barH : zeroY;
-    ctx.fillStyle = i <= currentRound ? (v >= 0 ? '#38ef7d' : '#ef4444') : '#1e2130';
-    ctx.beginPath();
-    ctx.roundRect(x, y, barW, barH, 3);
-    ctx.fill();
-    // round label
+    const barH = (Math.abs(p.profit) / maxV) * (H * 0.45);
+    const y = p.profit >= 0 ? zeroY - barH : zeroY;
+    const active = i <= currentRound;
+    ctx.fillStyle = active ? (p.profit >= 0 ? '#38ef7d' : '#ef4444') : '#1e2130';
+    ctx.beginPath(); ctx.roundRect(x, y, barW, barH, 3); ctx.fill();
+    // Label
     ctx.fillStyle = i === currentRound ? '#fff' : '#6b7084';
     ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
     ctx.fillText(`R${i+1}`, x + barW/2, H - 4);
   });
 
-  // axis label
   ctx.fillStyle = '#6b7084'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
   ctx.fillText('$0', 36, zeroY + 4);
+
+  // Note if data is campaign-only (old manifests)
+  if (profitHistory.some(p => !p.hasRecurring)) {
+    ctx.fillStyle = '#6b7084'; ctx.font = '9px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('⚠ Old data — showing campaign P&L only (re-run for full profit)', 50, 13);
+  }
 }
 
 function prevRound() { if (currentRound > 0) { currentRound--; renderRound(); } }
@@ -330,7 +440,7 @@ function togglePlay() {
 
 function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-loadSeeds();
+discoverModels();
 </script>
 </body>
 </html>

@@ -147,31 +147,36 @@ class HudBackend:
     a new checkpoint so the next rollout is on-policy.
     """
 
-    def __init__(self, model, env_path="env.py", max_steps=80):
+    def __init__(self, model, env_path="env.py", max_steps=80, max_tokens=4096):
         from hud.eval import LocalRuntime          # local: serve env.py in a child proc
         from hud.agents import create_agent
         from hud.train import TrainingClient
 
         self.model = model
         self.max_steps = max_steps                 # ~16 rounds x a few tool calls each
+        self.max_tokens = max_tokens               # per-turn token budget (reasoning + tool call)
         self.runtime = LocalRuntime(env_path)
         self._create_agent = create_agent
         self.client = TrainingClient(model)
 
-    def _agent(self, temperature, trainable=True):
-        # openai_compatible (Tinker) config ignores a top-level `temperature` — it
-        # lives in completion_kwargs — and defaults max_steps=10 (too few for a full
-        # episode). Set both explicitly. Unknown kwargs are ignored by other agent types.
-        #
-        # extra_body={"return_token_ids": True} is REQUIRED for training: the
-        # openai_compatible agent only records per-turn token-level samples (token ids +
-        # sampling logprobs) when token ids are requested — without it, forward_backward
-        # rejects the batch with "no trainable turns". Harmless for eval (samples ignored).
-        completion_kwargs = {"temperature": temperature}
-        if trainable:
-            completion_kwargs["extra_body"] = {"return_token_ids": True}
+    def _agent(self, temperature):
+        # openai_compatible (Tinker) config ignores a top-level `temperature`/`max_tokens`
+        # — they live in completion_kwargs — and defaults max_steps=10 (too few for a
+        # full episode). Three settings are load-bearing for on-policy RL:
+        #   extra_body.return_token_ids=True  -> the gateway returns token ids + per-token
+        #       logprobs so each AgentStep carries a trainable Sample (without it the run
+        #       has NO token samples and forward_backward gets nothing to learn from).
+        #   max_tokens large enough that a reasoning model finishes <think> AND emits the
+        #       tool call in one turn (else the truncated turn has no tool call and the
+        #       agent loop ends early at round 0 -> reward ~0).
+        #   max_steps covers the whole episode's tool calls.
         return self._create_agent(
-            self.model, max_steps=self.max_steps, completion_kwargs=completion_kwargs)
+            self.model, max_steps=self.max_steps,
+            completion_kwargs={
+                "temperature": temperature,
+                "max_tokens": self.max_tokens,
+                "extra_body": {"return_token_ids": True},
+            })
 
     def _tasks(self, seeds):
         from env import market_discovery
@@ -252,8 +257,9 @@ class HudTeamBackend(HudBackend):
     roles via delegate tools), reward = team disc.eff. Training advances the shared checkpoint.
     (Native per-role agents — pattern B — is the documented stretch.)"""
 
-    def __init__(self, model, max_steps=120):
-        super().__init__(model, env_path="env_multiagent.py", max_steps=max_steps)
+    def __init__(self, model, max_steps=120, max_tokens=4096):
+        super().__init__(model, env_path="env_multiagent.py", max_steps=max_steps,
+                         max_tokens=max_tokens)
 
     def _tasks(self, seeds):
         from env_multiagent import multiagent_market_discovery
@@ -350,6 +356,8 @@ def main():
                     help="rollout sampling temperature (eval is greedy at 0.0)")
     ap.add_argument("--max-steps", type=int, default=80,
                     help="agent tool-call budget per episode (~16 rounds x a few calls)")
+    ap.add_argument("--max-tokens", type=int, default=4096,
+                    help="per-turn token budget (reasoning models need room for <think> + tool call)")
     ap.add_argument("--model", default=DEFAULT_MODEL,
                     help="forked trainable gateway slug (required for --run)")
     ap.add_argument("--out", default="rft_hud_out")
@@ -394,8 +402,11 @@ def main():
             print("\nERROR: --run needs a trainable model. Create one with "
                   "`hud models fork <base-model>` and pass --model <slug>.")
             return
-        backend = (HudTeamBackend(args.model, max_steps=max(args.max_steps, 120))
-                   if args.multiagent else HudBackend(args.model, max_steps=args.max_steps))
+        backend = (HudTeamBackend(args.model, max_steps=max(args.max_steps, 120),
+                                  max_tokens=args.max_tokens)
+                   if args.multiagent
+                   else HudBackend(args.model, max_steps=args.max_steps,
+                                   max_tokens=args.max_tokens))
     else:
         backend = MockTeamBackend() if args.multiagent else MockBackend()
 

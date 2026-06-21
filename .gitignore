@@ -15,3 +15,13 @@ rl_grpo_out/
 artifacts_multiagent/
 rft_hud_team_out/
 .gstack/
+grpo/sim.py
+grpo/agent.py
+grpo/*.jsonl
+grpo/*.log
+grpo/.ep_tmp/
+grpo/__pycache__/
+grpo/monitor.sh
+grpo/monitor.py
+grpo/job_final.json
+grpo_monitor.py

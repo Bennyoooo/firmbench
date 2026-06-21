@@ -78,7 +78,18 @@
   `--selftest` (mock model, no network) validates the whole machinery and shows the
   curve bend: **−734 → 15,524** mean held-out reward, flags 5/8 → 0/8. The verifier
   *curates the training set* — only profitable, non-cheating episodes become SFT data.
-- [~] **Real RFT run** (`rft.py --run`, `RFT_RUN.md`) — executed on Fireworks with
+- [x] **Real RL run — GRPO, the curve bends** (`grpo/`, `grpo/RESULTS.md`) — genuine
+  reinforcement learning (GRPO, not SFT) on Fireworks managed RFT (eval-protocol).
+  Reward = our oracle-normalized profit verifier (execution-based, ungameable),
+  8 candidates/prompt, KL-regularized. **qwen3-8b** learning curve over 3 epochs:
+  **0.193 → 0.307 → 0.367**; held-out generalization **base 0.147 → tuned 0.529
+  (+260% on unseen worlds)**. Journey: glm-5p1 trainer too heavy (crashed) → pivoted to
+  qwen3-8b; fixed a zero-variance early-stop by unclipping the reward + temp 1.0 +
+  8 candidates. Job `kby4ofja` → `firmbench-qwen3-8b-grpo-v4`.
+- [x] **HUD eval of the fine-tuned checkpoint** (`HUD_EVAL.md`) — `hud eval` verified
+  driving the Fireworks GRPO checkpoint against `env.py` end-to-end (openai_compatible +
+  scale-to-zero LoRA deployment; no Docker).
+- [~] **Earlier: rejection-sampling SFT** (`rft.py --run`, `RFT_RUN.md`) — on Fireworks with
   `glm-5p1` (only serverless model that trains+serves LoRA cheaply). Base eval
   **−409.6** mean reward (loses money). 24 real rollouts → **cold start**: zero
   winning trajectories (frontier models score ~0 here), so we bootstrap with 240

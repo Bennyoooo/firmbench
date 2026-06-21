@@ -49,7 +49,11 @@ def test_mock_rl_loop_bends_curve():
         steps=4, group_size=4, lr=1e-5, loss_fn="importance_sampling",
         temperature=0.7, out_dir="rft_hud_out"))
     base, final = curve[0]["eval"], curve[-1]["eval"]
-    assert final > base + 0.2, f"RL curve should bend up: {base:.3f} -> {final:.3f}"
+    # Scale-relative: the Phase-A LTV oracle is huge, so non-oracle disc_eff values
+    # are small (scripted ~0.066) — the mock's ceiling is ScriptedExperimenter. Assert
+    # the curve bends up clearly (multiplicative), not by an absolute old-sim margin.
+    assert final > base * 2 and final > base + 0.03, \
+        f"RL curve should bend up: {base:.3f} -> {final:.3f}"
     # every step records its grouped rollout count (4 seeds x group_size 4)
     assert all(p["n_rollouts"] == 16 for p in curve[1:])
 

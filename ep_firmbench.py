@@ -120,14 +120,15 @@ def _dataset():
 @evaluation_test(
     input_rows=[_dataset()],
     completion_params=[{
-        "model": "accounts/fireworks/models/qwen3-8b",
+        "model": "accounts/fireworks/models/glm-5p1",
         "temperature": 0.7,
         "max_tokens": 2048,
     }],
     mode="pointwise",
 )
-def firmbench_round_profit(row: EvaluationRow) -> EvaluationRow:
-    """LEGACY cost-probe: reward = normalized one-step profit of the model's round-0 action."""
+def test_firmbench_grpo(row: EvaluationRow) -> EvaluationRow:
+    """LEGACY single-turn cost-probe: reward = normalized one-step profit of the round-0 action.
+    (Kept under main's name for the uploaded evaluator; firmbench_episode is the multi-turn upgrade.)"""
     seed = (row.ground_truth or {}).get("seed", 1)
     world = generate_world(seed, cfg)
     env = FirmEnv(world)

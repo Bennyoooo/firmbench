@@ -35,7 +35,7 @@ from hud import Environment
 from hud.capabilities import Capability
 from hud.graders import EvaluationResult
 
-from sim import Config, generate_world, FirmEnv, sigmoid, OraclePolicy, run_episode
+from sim import Config, generate_world, FirmEnv, sigmoid, OraclePolicy, run_episode, theoretical_max
 from scorer import ScoreConfig, score_ad_copy, score_feature_spec
 from renderer import render_ad_card, render_feature_page
 
@@ -67,10 +67,12 @@ _SCORE_CFG = None            # scorer config (fast_mode unless env vars set)
 
 def _grade_episode():
     profit = _ENV.total_profit
-    oracle_profit = run_episode(_WORLD, OraclePolicy(_WORLD))
-    disc_eff = profit / oracle_profit if oracle_profit > 0 else 0.0
-    reward = max(0.0, min(1.0, disc_eff))
-    beat_oracle = disc_eff > 1.0          # C3 guard: reference no longer a valid ceiling
+    tmax = theoretical_max(_WORLD)                             # optimistic upper bound = true ceiling
+    oracle_profit = run_episode(_WORLD, OraclePolicy(_WORLD))  # achievable-expert baseline (reported)
+    pct_of_max = profit / tmax if tmax > 0 else 0.0
+    pct_of_oracle = profit / oracle_profit if oracle_profit > 0 else 0.0
+    reward = max(0.0, min(1.0, pct_of_max))                    # normalize to the ceiling -> honest [0,1]
+    over_ceiling = pct_of_max > 1.0                            # must never happen if tmax is valid
 
     if _ARTIFACTS_DIR:
         manifest = {
@@ -78,8 +80,10 @@ def _grade_episode():
             "rounds": len(_ROUND_ACTIONS),
             "final_reward": round(reward, 4),
             "profit": round(profit, 2),
+            "theoretical_max": round(tmax, 2),
             "oracle_profit": round(oracle_profit, 2),
-            "disc_eff": round(disc_eff, 3),
+            "pct_of_max": round(pct_of_max, 3),
+            "pct_of_oracle": round(pct_of_oracle, 3),
             "pain_names": _WORLD.pain_names,
             "feature_names": _WORLD.feature_names,
             "actions": _ROUND_ACTIONS,
@@ -92,9 +96,11 @@ def _grade_episode():
 
     return reward, {
         "profit": round(profit, 2),
+        "theoretical_max": round(tmax, 2),
         "oracle_profit": round(oracle_profit, 2),
-        "disc_eff": round(disc_eff, 3),
-        "beat_oracle": beat_oracle,
+        "pct_of_max": round(pct_of_max, 3),       # the reward: fraction of the true ceiling
+        "pct_of_oracle": round(pct_of_oracle, 3), # context: fraction of the achievable expert
+        "over_ceiling": over_ceiling,
     }
 
 
@@ -306,6 +312,18 @@ async def end_round() -> dict[str, Any]:
     # Override the default quality=1.0 if NL scoring set a different value
     if action.get("build") is not None and quality != 1.0:
         _ENV.built[action["build"]] = quality
+
+    # Store per-round results in the action log for replay viewer
+    # (profit includes recurring subscription revenue, not just campaign P&L)
+    action["round_profit"] = round(profit, 2)
+    action["cash_after"] = round(obs["cash"], 2)
+    action["total_profit"] = round(_ENV.total_profit, 2)
+    # Store campaign results from obs (has audience/revenue from the step)
+    for i, camp_obs in enumerate(obs.get("per_campaign", [])):
+        if i < len(action.get("campaigns", [])):
+            for k in ("audience", "impressions", "tries", "purchases", "revenue"):
+                if k in camp_obs:
+                    action["campaigns"][i][k] = camp_obs[k]
 
     _CURRENT_ROUND_ACTION = {}
     return {
