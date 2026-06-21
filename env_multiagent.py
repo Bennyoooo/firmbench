@@ -119,51 +119,50 @@ async def get_team_state() -> dict[str, Any]:
     return obs
 
 
-async def coordinator_set_budget(budget: float, directive: str = "") -> dict[str, Any]:
+async def coordinator_set_budget(budget: float, directive: str) -> dict[str, Any]:
     """As the Coordinator, set this round's marketing BUDGET (a cap on total Marketer spend)
     and post a DIRECTIVE to the blackboard for the other roles.
 
     Args:
         budget: dollars the Marketer may spend this round.
         directive: a short instruction the Builder/Pricer/Marketer can read (e.g.
-                   "PHASE: discover — build the next feature; test the top pains").
+                   "PHASE: discover — build the next feature; test the top pains"). Use "" for none.
     """
     _MENV.submit("coordinator", {"budget": float(budget)}, message=directive or None)
     return {"budget_set": float(budget), "directive_posted": bool(directive)}
 
 
-async def delegate_build(feature_id: int = None, spec: str = None,
-                         note: str = "") -> dict[str, Any]:
+async def delegate_build(feature_id: int, spec: str, note: str) -> dict[str, Any]:
     """Delegate to the BUILDER: build a feature this round ($300). Tell the Marketer what you
     built via `note` (it can't target the solved pain unless it knows the feature exists).
 
     Args:
-        feature_id: which feature to build (0-7). If a spec is given and id omitted, it's
-                    identified from the spec.
-        spec: optional feature spec text (scored for implementation quality).
-        note: a blackboard message for the team (e.g. "BUILT: feature 3").
+        feature_id: which feature to build (0-7), or -1 to build NOTHING this round.
+        spec: optional feature spec text ("" for none; scored for implementation quality).
+        note: a blackboard message for the team (e.g. "BUILT: feature 3"; "" if none).
     """
+    fid = None if (feature_id is None or int(feature_id) < 0) else int(feature_id)
     quality = 1.0
     if spec and _WORLD:
         scored = score_feature_spec(spec, _WORLD, _SCORE_CFG)
-        if feature_id is None:
-            feature_id = scored["feature_id"]
+        if fid is None:
+            fid = scored["feature_id"]
         quality = scored["quality"]
-    action = {"build": (int(feature_id) if feature_id is not None else None)}
+    action = {"build": fid}
     if quality != 1.0:
         action["quality"] = quality
     _MENV.submit("builder", action, message=note or None)
     view = _MENV.role_obs("builder")
-    return {"build_staged": action["build"], "quality": quality,
+    return {"build_staged": fid, "quality": quality,
             "built_features": view["built_features"], "bounced_quality": view["bounced_quality"]}
 
 
-async def delegate_price(price: float, note: str = "") -> dict[str, Any]:
+async def delegate_price(price: float, note: str) -> dict[str, Any]:
     """Delegate to the PRICER: set the product price (drives conversion now and churn later).
 
     Args:
         price: the price in dollars.
-        note: optional blackboard message.
+        note: blackboard message ("" if none).
     """
     price = max(1.0, min(500.0, float(price)))
     _MENV.submit("pricer", {"price": price}, message=note or None)
@@ -172,17 +171,26 @@ async def delegate_price(price: float, note: str = "") -> dict[str, Any]:
             "recent_purchases": view["recent_purchases"], "last_round_churn": view["last_round_churn"]}
 
 
-async def delegate_campaigns(campaigns: list[dict], note: str = "") -> dict[str, Any]:
+async def delegate_campaigns(campaigns_json: str, note: str) -> dict[str, Any]:
     """Delegate to the MARKETER: stage this round's ad campaigns (spend is clamped to the
-    Coordinator's budget). Each campaign = {target_pains:[int], spend:float, channel:int,
-    ad_copy?:str}. Results arrive after end_round().
+    Coordinator's budget). Results arrive after end_round().
 
     Args:
-        campaigns: list of campaign dicts.
-        note: blackboard message (e.g. "TARGETS: [0, 2, 5]").
+        campaigns_json: a JSON array string of campaigns, e.g.
+            '[{"target_pains":[0,2],"spend":50,"channel":0}]' (each campaign:
+            target_pains:[int], spend:float, channel:0-2, ad_copy?:str). Use "[]" for none.
+        note: blackboard message (e.g. "TARGETS: [0, 2, 5]"; "" if none).
     """
+    try:
+        campaigns = json.loads(campaigns_json) if campaigns_json else []
+        if isinstance(campaigns, dict):
+            campaigns = [campaigns]
+    except Exception:
+        campaigns = []
     staged = []
     for c in (campaigns or []):
+        if not isinstance(c, dict):
+            continue
         tgt = c.get("target_pains", c.get("target", []))
         if isinstance(tgt, int):
             tgt = [tgt]
@@ -327,15 +335,16 @@ async def _selftest_episode(seed):
         await coordinator_set_budget(co_act["budget"], directive=co_msg or "")
 
         bu_act, bu_msg = brain.builder(_MENV.role_obs("builder"))
-        await delegate_build(feature_id=bu_act.get("build"), note=bu_msg or "")
+        b = bu_act.get("build")
+        await delegate_build(feature_id=(-1 if b is None else int(b)), spec="", note=bu_msg or "")
 
         pr_act, _ = brain.pricer(_MENV.role_obs("pricer"))
-        await delegate_price(pr_act["price"])
+        await delegate_price(pr_act["price"], note="")
 
         ma_act, ma_msg = brain.marketer(_MENV.role_obs("marketer"))
         camps = [{"target_pains": sorted(c["target"]), "spend": c["spend"],
                   "channel": c.get("channel", 0)} for c in ma_act.get("campaigns", [])]
-        await delegate_campaigns(camps, note=ma_msg or "")
+        await delegate_campaigns(json.dumps(camps), note=ma_msg or "")
         await end_round()
     return _grade_episode()
 

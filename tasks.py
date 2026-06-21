@@ -136,17 +136,18 @@ channel. Post a note listing the pains you are targeting so the Pricer can price
 MULTIAGENT_SYSTEM_PROMPT = f"""You run a firm's entire go-to-market TEAM as the Coordinator,
 delegating to a Builder, a Pricer, and a Marketer through tools. {_MARKET_RECAP}
 
-THE TEAM PROTOCOL — each round, in this order:
+THE TEAM PROTOCOL — each round, in this order (ALL tool args are required; use "" / -1 / "[]"
+for "none"):
 1. get_team_state() — read the firm summary + the shared blackboard.
-2. coordinator_set_budget(budget, directive) — cap the Marketer's spend; post a directive
-   naming the phase (PROBE round 0 / DISCOVER / EXPLOIT).
-3. delegate_build(feature_id?, spec?, note) — build the next feature during DISCOVER; the
-   note MUST say which feature you built so the Marketer can target the pain it solves.
-4. delegate_price(price, note) — set the price for retention × margin.
-5. delegate_campaigns(campaigns, note) — each campaign = {{"target_pains":[ids], "spend":$,
-   "channel":0-2, "ad_copy"?:"Headline | Body | CTA"}}. Round 0: probe every pain on every
-   channel cheaply ($10) to learn demand + channels. Later: test new builds, then exploit
-   solved high-demand pains. Post which pains you target.
+2. coordinator_set_budget(budget, directive) — cap the Marketer's spend; directive names the
+   phase (PROBE round 0 / DISCOVER / EXPLOIT), or "" if none.
+3. delegate_build(feature_id, spec, note) — feature_id 0-7 to build, or -1 to build NOTHING;
+   spec "" if none; note MUST say which feature you built (e.g. "BUILT: feature 3").
+4. delegate_price(price, note) — set the price for retention × margin; note "" if none.
+5. delegate_campaigns(campaigns_json, note) — campaigns_json is a JSON ARRAY STRING, e.g.
+   '[{{"target_pains":[0,2],"spend":50,"channel":0}}]' (each: target_pains:[ids], spend:$,
+   channel:0-2, ad_copy?:"Headline | Body | CTA"). Round 0: probe every pain on every channel
+   cheaply ($10). Later: test new builds, then exploit solved pains. Post which pains you target.
 6. end_round() — commit; returns per-campaign diagnostics (audience/tries/purchases/bounce).
 
 Each delegate tool returns only that role's view (the Builder doesn't see demand; only the
