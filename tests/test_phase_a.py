@@ -149,6 +149,18 @@ def test_segment_id_not_leaked_to_agent():
     assert all(not k.startswith("_") for k in obs["per_campaign"][0]), "no internal keys leaked"
 
 
+# ----------------------------- Step 10: ablation gate -----------------------------
+
+def test_ablation_gate_reports_each_latent():
+    from sim import ablation_gate
+    rows = ablation_gate(seeds=[1, 2])
+    keys = {r["config"] for r in rows}
+    assert {"v1", "+segments", "+channels", "+elasticity", "+quality_bar",
+            "+retention", "full"} <= keys
+    for r in rows:
+        assert "naive" in r and "scripted" in r and "oracle" in r and "gate" in r
+
+
 if __name__ == "__main__":
     import traceback
     fails = 0

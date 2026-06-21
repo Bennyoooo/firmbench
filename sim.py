@@ -507,11 +507,29 @@ def best_price_for(world: World, built: dict, target_pains, sample=600):
                 if fe in built:
                     ff += built[fe]
             ff = ff / len(u.pains) if u.pains else 0.0
-            pb = sigmoid(cfg.alpha * ff + cfg.beta * (u.wtp - price) / u.wtp - cfg.gamma)
+            beta_u = u.elasticity if (cfg.use_elasticity and u.elasticity is not None) else cfg.beta
+            pb = sigmoid(cfg.alpha * ff + beta_u * (u.wtp - price) / u.wtp - cfg.gamma)
             val += pb * price
         if val > best_val:
             best_val, best_price = val, price
     return best_price
+
+
+def _best_channel(world: World, target_pains):
+    """Resonance-weighted modal channel_pref among a target's matching users (the
+    channel that maximizes conversion under the funnel). 0 when channels are off."""
+    if not world.segments:
+        return 0
+    tset = set(target_pains)
+    pool = set()
+    for p in target_pains:
+        pool.update(world.users_by_pain.get(p, []))
+    wt = {}
+    for idx in pool:
+        u = world.users[idx]
+        if u.pains:
+            wt[u.channel_pref] = wt.get(u.channel_pref, 0.0) + len(tset & u.pains) / len(u.pains)
+    return max(wt, key=wt.get) if wt else 0
 
 
 # ----------------------------- policies -----------------------------
@@ -535,7 +553,9 @@ class NaivePolicy:
                 f = self.rng.choice(candidates)
         target = set(self.rng.sample(range(cfg.n_pains), 3))
         spend = min(700.0, max(0.0, obs["cash"] * 0.4))
-        return {"build": f, "price": 50.0, "campaigns": [{"target": target, "spend": spend}]}
+        channel = self.rng.randrange(cfg.n_channels) if cfg.use_channels else 0  # no extra draw in v1
+        return {"build": f, "price": 50.0,
+                "campaigns": [{"target": target, "spend": spend, "channel": channel}]}
 
 
 class OraclePolicy:
@@ -570,7 +590,9 @@ class OraclePolicy:
         price = best_price_for(self.w, built_map, target)
         reserve = self.w.cfg.build_cost if f is not None else 0.0
         spend = max(0.0, obs["cash"] - reserve)
-        return {"build": f, "price": price, "campaigns": [{"target": target, "spend": spend}]}
+        channel = _best_channel(self.w, target)
+        return {"build": f, "price": price,
+                "campaigns": [{"target": target, "spend": spend, "channel": channel}]}
 
 
 class ScriptedExperimenter:
@@ -661,6 +683,38 @@ def run_episode(world, policy):
         action = policy.act(env, obs)
         obs, reward, done, _ = env.step(action)
     return env.total_profit
+
+
+def ablation_gate(seeds=(1, 2, 3, 4, 5)):
+    """The reactive-fix bisection tool. Runs naive/scripted/oracle under v1, each single
+    Phase A latent (on top of segments), and full. Gate PASS iff naive < scripted < oracle;
+    WARN if scripted > oracle (reference too weak); FAIL otherwise (the latent broke
+    discovery for the scripted experimenter -> fix its observation/strategy)."""
+    BUD = dict(horizon=16, starting_cash=18000.0)   # uniform scaled budget for Phase A rows (C2)
+    configs = [
+        ("v1", Config()),
+        ("+segments", Config(use_segments=True, **BUD)),
+        ("+channels", Config(use_segments=True, use_channels=True, **BUD)),
+        ("+elasticity", Config(use_segments=True, use_elasticity=True, **BUD)),
+        ("+quality_bar", Config(use_segments=True, use_quality_bar=True, **BUD)),
+        ("+retention", Config(use_segments=True, use_retention=True, **BUD)),
+        ("full", Config.phase_a()),
+    ]
+    rows = []
+    print(f"{'config':>13} | {'naive':>11} | {'scripted':>11} | {'oracle':>11} | {'gate':>5}")
+    print("-" * 66)
+    for name, cfg in configs:
+        nl, sl, ol = [], [], []
+        for s in seeds:
+            world = generate_world(s, cfg)
+            nl.append(run_episode(world, NaivePolicy(world, s)))
+            sl.append(run_episode(world, ScriptedExperimenter(world, s)))
+            ol.append(run_episode(world, OraclePolicy(world)))
+        nv, sc, orc = sum(nl) / len(nl), sum(sl) / len(sl), sum(ol) / len(ol)
+        gate = "WARN" if sc > orc else ("PASS" if nv < sc else "FAIL")
+        rows.append({"config": name, "naive": nv, "scripted": sc, "oracle": orc, "gate": gate})
+        print(f"{name:>13} | {nv:>11.0f} | {sc:>11.0f} | {orc:>11.0f} | {gate:>5}")
+    return rows
 
 
 def main():
