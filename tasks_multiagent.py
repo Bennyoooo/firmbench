@@ -21,5 +21,6 @@ _t2.slug = "multiagent_market_discovery_seed123"
 _t3 = multiagent_market_discovery(prompt=MULTIAGENT_SYSTEM_PROMPT, seed=7)
 _t3.slug = "multiagent_market_discovery_seed7"
 
-multiagent_tasks = [_t1, _t2, _t3]
-tasks = multiagent_tasks   # default list for `hud eval tasks_multiagent.py`
+# ONE module-level task list (HUD's loader scans every list of Tasks, so a second alias
+# list would double-count -> "duplicate task slugs"). Underscore-prefixed _tN are skipped.
+tasks = [_t1, _t2, _t3]
