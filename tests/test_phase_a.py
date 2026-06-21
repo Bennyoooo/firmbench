@@ -1,7 +1,7 @@
 # tests/test_phase_a.py — run from repo root: python3 tests/test_phase_a.py
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # CR1: repo root on path
-from sim import (Config, generate_world, run_episode, FirmEnv,
+from sim import (Config, generate_world, run_episode, FirmEnv, replay_profit,
                  NaivePolicy, ScriptedExperimenter, OraclePolicy)
 
 
@@ -159,6 +159,34 @@ def test_ablation_gate_reports_each_latent():
             "+retention", "full"} <= keys
     for r in rows:
         assert "naive" in r and "scripted" in r and "oracle" in r and "gate" in r
+
+
+# ----------------------------- Steps 11-13: holdout grading -----------------------------
+
+def _play_capturing_log(world, policy):
+    env = FirmEnv(world); policy.reset(); obs = env.reset()
+    log, done = [], False
+    while not done:
+        a = policy.act(env, obs)
+        log.append({"build": a.get("build"), "price": a.get("price", env.price),
+                    "campaigns": [{"target": sorted(c.get("target", set())),
+                                   "spend": float(c.get("spend", 0.0)),
+                                   "channel": c.get("channel", 0)} for c in a.get("campaigns", [])]})
+        obs, _, done, _ = env.step(a)
+    return env.total_profit, log
+
+def test_replay_profit_matches_live_on_full_set():
+    # replay_profit is exact: replaying ALL users at scale 1.0 reproduces the live profit.
+    w = generate_world(7, Config.phase_a())
+    reported, log = _play_capturing_log(w, ScriptedExperimenter(w, 7))
+    full = replay_profit(w, list(range(len(w.users))), log, spend_scale=1.0)
+    assert abs(full - reported) < 1.0
+
+def test_replay_profit_deterministic():
+    w = generate_world(2, Config.phase_a())
+    _, log = _play_capturing_log(w, ScriptedExperimenter(w, 2))
+    n = len(w.users); ho = list(range(int(n * 0.8), n))
+    assert replay_profit(w, ho, log, 0.2) == replay_profit(w, ho, log, 0.2)
 
 
 if __name__ == "__main__":

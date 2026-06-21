@@ -14,7 +14,7 @@ expect  naive  <<  scripted  <=  oracle.
 
 import math
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 
 # ----------------------------- config -----------------------------
@@ -682,6 +682,43 @@ def run_episode(world, policy):
     while not done:
         action = policy.act(env, obs)
         obs, reward, done, _ = env.step(action)
+    return env.total_profit
+
+
+def subworld(world: World, user_indices, cfg: Config = None) -> World:
+    """A World restricted to a subset of users (same solves/segments/names; cfg override
+    lets the grader scale costs to the subset)."""
+    cfg = cfg or world.cfg
+    users = [world.users[i] for i in user_indices]
+    ubp = {p: [] for p in range(cfg.n_pains)}
+    for idx, u in enumerate(users):
+        for p in u.pains:
+            ubp[p].append(idx)
+    pop = [len(ubp[p]) for p in range(cfg.n_pains)]
+    return World(cfg, world.solves, users, ubp, pop, world.pain_names, world.pain_keywords,
+                 world.feature_names, world.feature_keywords, segments=world.segments)
+
+
+def replay_profit(world: World, user_indices, action_log, spend_scale=1.0) -> float:
+    """Execution-based grading: replay an action log on a subset of users through the
+    REAL funnel — channels, elasticity, quality gate, and retention all stay consistent
+    with the live env (no hand-rolled funnel copy to drift). spend/build are scaled to the
+    subset size; bankruptcy/horizon are disabled so the full log always replays."""
+    scfg = replace(world.cfg, build_cost=world.cfg.build_cost * spend_scale,
+                   starting_cash=1e12, horizon=len(action_log) + 1)
+    env = FirmEnv(subworld(world, user_indices, scfg))
+    env.reset()
+    for entry in action_log:
+        camps = [{"target": set(c.get("target", set())),
+                  "spend": float(c.get("spend", 0.0)) * spend_scale,
+                  "channel": c.get("channel", 0),
+                  "craft": c.get("craft", 1.0)}
+                 for c in entry.get("campaigns", [])]
+        env.step({"build": entry.get("build"),
+                  "price": entry.get("price", env.price), "campaigns": camps})
+        b = entry.get("build")                      # honor NL build quality (next-round, like live)
+        if b is not None and entry.get("quality", 1.0) != 1.0:
+            env.built[b] = entry["quality"]
     return env.total_profit
 
 
