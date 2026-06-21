@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FirmBench — Simulated Market</title>
+<style>
+:root{--bg:#0a0b0f;--card:#13151c;--border:#1e2130;--text:#c8cad0;--dim:#6b7084;
+  --accent:#667eea;--green:#38ef7d;--red:#ef4444;--gold:#f59e0b;--purple:#a78bfa;
+  --cyan:#22d3ee;--orange:#fb923c;--pink:#f472b6}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--bg);color:var(--text);min-height:100vh;padding:20px;max-width:1400px;margin:0 auto}
+h1{font-size:28px;font-weight:800;color:#fff;margin-bottom:4px}
+h2{font-size:18px;font-weight:600;color:#fff;margin-bottom:16px}
+h3{font-size:14px;font-weight:600;color:var(--accent);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px}
+.subtitle{color:var(--dim);font-size:14px;margin-bottom:24px}
+.tabs{display:flex;gap:4px;margin-bottom:24px;background:var(--card);border-radius:12px;padding:4px;width:fit-content}
+.tab{padding:10px 24px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;color:var(--dim);
+  transition:all 0.2s;border:none;background:none}
+.tab:hover{color:var(--text)}
+.tab.active{background:var(--accent);color:#fff}
+.tab-content{display:none}.tab-content.active{display:block}
+.grid{display:grid;gap:16px;margin-bottom:24px}
+.grid-2{grid-template-columns:1fr 1fr}
+.grid-3{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:900px){.grid-2,.grid-3{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.panel-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.panel-header h3{margin:0}
+.panel-body{padding:18px}
+.stat-row{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 20px;flex:1;min-width:140px}
+.stat-value{font-size:28px;font-weight:700;color:#fff;margin-bottom:2px}
+.stat-label{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:0.5px}
+.bar-chart{display:flex;flex-direction:column;gap:6px}
+.bar-row{display:flex;align-items:center;gap:8px}
+.bar-label{width:160px;font-size:12px;color:var(--text);text-align:right;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-track{flex:1;height:24px;background:var(--border);border-radius:4px;position:relative;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width 0.6s ease}
+.bar-value{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:600;color:#fff}
+.histogram{display:flex;align-items:flex-end;gap:1px;height:120px;padding-top:8px}
+.hist-bar{flex:1;border-radius:2px 2px 0 0;transition:height 0.4s ease;min-width:4px;position:relative}
+.hist-bar:hover{opacity:0.8}
+.hist-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--dim);margin-top:4px}
+.mapping-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center}
+.mapping-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;background:rgba(102,126,234,0.08)}
+.mapping-arrow{color:var(--accent);font-size:20px;text-align:center}
+.mapping-bar{height:4px;border-radius:2px;margin-top:4px}
+.segment-card{padding:14px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px}
+.segment-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.segment-name{font-weight:600;color:#fff;font-size:14px}
+.segment-badge{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:500}
+.segment-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px}
+.segment-stat{text-align:center}
+.segment-stat-value{font-size:16px;font-weight:600;color:#fff}
+.segment-stat-label{font-size:10px;color:var(--dim)}
+.pain-tags{display:flex;gap:4px;flex-wrap:wrap}
+.pain-tag{font-size:10px;padding:2px 8px;border-radius:8px;background:rgba(102,126,234,0.12);color:var(--accent)}
+.scatter-container{position:relative;height:300px;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--bg)}
+.scatter-dot{position:absolute;width:6px;height:6px;border-radius:50%;opacity:0.6;transition:opacity 0.2s}
+.scatter-dot:hover{opacity:1;transform:scale(2)}
+.scatter-axis-x{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--dim)}
+.scatter-axis-y{position:absolute;left:4px;top:50%;transform:translateY(-50%) rotate(-90deg);font-size:10px;color:var(--dim)}
+.callout{background:rgba(102,126,234,0.08);border:1px solid rgba(102,126,234,0.2);border-radius:10px;padding:14px 18px;
+  margin-bottom:20px;font-size:13px;color:var(--accent)}
+.callout strong{color:#fff}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim)}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.channel-bar{display:flex;height:32px;border-radius:6px;overflow:hidden;margin-bottom:8px}
+.channel-segment{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;transition:flex 0.4s}
+.controls{display:flex;gap:12px;align-items:center;margin-bottom:20px}
+select{background:var(--card);color:var(--text);border:1px solid var(--border);padding:8px 16px;border-radius:8px;font-size:13px}
+.hidden-lock{display:flex;align-items:center;gap:8px;padding:8px 16px;background:rgba(239,68,68,0.08);
+  border:1px solid rgba(239,68,68,0.2);border-radius:8px;font-size:12px;color:var(--red)}
+.discovery-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)}
+.discovery-row:last-child{border:none}
+.discovered{color:var(--green)}.missed{color:var(--dim);opacity:0.5}
+.price-line{position:absolute;width:2px;height:100%;background:var(--gold);top:0;z-index:2}
+.price-label{position:absolute;top:-18px;transform:translateX(-50%);font-size:10px;color:var(--gold);white-space:nowrap}
+</style>
+</head>
+<body>
+
+<h1>🌍 Simulated Market</h1>
+<p class="subtitle">The hidden world behind FirmBench — 5,000 synthetic customers the agent must discover</p>
+
+<div class="controls">
+  <label>Seed: <select id="seedSelect"><option>Loading...</option></select></label>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('market')">📊 The Market</button>
+  <button class="tab" onclick="switchTab('reveal')">🔓 The Reveal</button>
+</div>
+
+<!-- TAB 1: THE MARKET (no spoilers) -->
+<div id="tab-market" class="tab-content active">
+
+<div class="callout">
+  <strong>The agent sees NONE of this.</strong> This dashboard shows the hidden ground truth —
+  the simulated population of customers, their needs, and their economics. The agent must
+  discover this structure through experimentation.
+</div>
+
+<div class="stat-row" id="topStats"></div>
+
+<div class="grid grid-2">
+  <div class="panel">
+    <div class="panel-header"><h3>🎯 Customer Pain Points (demand distribution)</h3></div>
+    <div class="panel-body" id="painChart"></div>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><h3>💰 Willingness to Pay (price sensitivity)</h3></div>
+    <div class="panel-body" id="wtpChart"></div>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="panel">
+    <div class="panel-header"><h3>👥 Customer Segments</h3></div>
+    <div class="panel-body" id="segmentCards"></div>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><h3>📡 Channel Distribution</h3></div>
+    <div class="panel-body" id="channelChart"></div>
+    <div class="panel-body">
+      <h3 style="margin-top:16px">🎲 Population Scatter</h3>
+      <div class="scatter-container" id="scatterPlot">
+        <span class="scatter-axis-x">Willingness to Pay →</span>
+        <span class="scatter-axis-y">Segment →</span>
+      </div>
+      <div class="legend" id="scatterLegend"></div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- TAB 2: THE REVEAL (hidden mapping + discovery analysis) -->
+<div id="tab-reveal" class="tab-content">
+
+<div class="callout">
+  <strong>🔓 The Hidden Truth.</strong> This is what the agent had to discover —
+  the secret mapping between customer pains and product features, and how its strategy
+  compared to the optimal.
+</div>
+
+<div class="grid grid-2">
+  <div class="panel">
+    <div class="panel-header"><h3>🗺️ Hidden Pain → Feature Mapping</h3></div>
+    <div class="panel-body" id="mappingChart"></div>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><h3>🔍 Agent Discovery Analysis</h3></div>
+    <div class="panel-body" id="discoveryAnalysis"></div>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="panel">
+    <div class="panel-header"><h3>💲 Agent Price vs Customer WTP</h3></div>
+    <div class="panel-body" id="priceVsWtp"></div>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><h3>📈 Market Coverage</h3></div>
+    <div class="panel-body" id="coverageChart"></div>
+  </div>
+</div>
+
+</div>
+
+<script>
+const SEG_COLORS = ['#667eea','#38ef7d','#f59e0b','#ef4444','#a78bfa','#22d3ee','#fb923c','#f472b6'];
+const CH_COLORS = ['#667eea','#38ef7d','#f59e0b'];
+let world = null, manifest = null;
+
+async function loadSeeds() {
+  const seeds = [];
+  for (const s of [1,2,3,4,5,7,42,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,123]) {
+    try { const r = await fetch(`artifacts/${s}/world.json`); if (r.ok) seeds.push(s); } catch(e) {}
+  }
+  const sel = document.getElementById('seedSelect');
+  sel.innerHTML = '';
+  if (!seeds.length) { sel.innerHTML = '<option>No worlds found — run export_world.py</option>'; return; }
+  seeds.forEach(s => { const o = document.createElement('option'); o.value=s; o.textContent=`Seed ${s}`; sel.appendChild(o); });
+  sel.onchange = () => loadWorld(parseInt(sel.value));
+  loadWorld(seeds[0]);
+}
+
+async function loadWorld(seed) {
+  world = await (await fetch(`artifacts/${seed}/world.json`)).json();
+  try { manifest = await (await fetch(`artifacts/${seed}/manifest.json`)).json(); } catch(e) { manifest = null; }
+  renderMarket();
+  renderReveal();
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.tab-content#tab-${name}`).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ── TAB 1: THE MARKET ──
+
+function renderMarket() {
+  renderTopStats();
+  renderPainChart();
+  renderWtpChart();
+  renderSegments();
+  renderChannels();
+  renderScatter();
+}
+
+function renderTopStats() {
+  const w = world;
+  document.getElementById('topStats').innerHTML = `
+    <div class="stat"><div class="stat-value">${w.n_users.toLocaleString()}</div><div class="stat-label">Simulated Customers</div></div>
+    <div class="stat"><div class="stat-value">${w.n_pains}</div><div class="stat-label">Pain Points</div></div>
+    <div class="stat"><div class="stat-value">${w.n_features}</div><div class="stat-label">Buildable Features</div></div>
+    <div class="stat"><div class="stat-value">${w.n_segments}</div><div class="stat-label">Hidden Segments</div></div>
+    <div class="stat"><div class="stat-value">$${w.wtp_percentiles.p50}</div><div class="stat-label">Median WTP</div></div>
+    <div class="stat"><div class="stat-value">${w.n_channels}</div><div class="stat-label">Channels</div></div>
+  `;
+}
+
+function renderPainChart() {
+  const maxCount = Math.max(...world.pain_popularity.map(p => p.count));
+  document.getElementById('painChart').innerHTML = '<div class="bar-chart">' +
+    world.pain_popularity.map((p, i) => `
+      <div class="bar-row">
+        <div class="bar-label" title="${p.name}">${p.name}</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:${p.count/maxCount*100}%;background:${SEG_COLORS[p.id % SEG_COLORS.length]}"></div>
+          <div class="bar-value">${p.count} (${p.pct}%)</div>
+        </div>
+      </div>`).join('') + '</div>';
+}
+
+function renderWtpChart() {
+  const buckets = world.wtp_distribution;
+  const maxCount = Math.max(...buckets.map(b => b.count));
+  const p = world.wtp_percentiles;
+  document.getElementById('wtpChart').innerHTML = `
+    <div style="position:relative">
+      <div class="histogram">${buckets.map((b,i) =>
+        `<div class="hist-bar" style="height:${b.count/maxCount*100}%;background:var(--accent)" title="$${b.lo}-${b.hi}: ${b.count} users"></div>`
+      ).join('')}</div>
+      <div class="hist-labels"><span>$${buckets[0].lo.toFixed(0)}</span><span>$${buckets[Math.floor(buckets.length/2)].lo.toFixed(0)}</span><span>$${buckets[buckets.length-1].hi.toFixed(0)}</span></div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:16px;font-size:12px;color:var(--dim)">
+      <span>P10: $${p.p10}</span><span>P25: $${p.p25}</span>
+      <span style="color:var(--gold);font-weight:600">Median: $${p.p50}</span>
+      <span>P75: $${p.p75}</span><span>P90: $${p.p90}</span>
+    </div>`;
+}
+
+function renderSegments() {
+  if (!world.segments.length) {
+    document.getElementById('segmentCards').innerHTML = '<div style="color:var(--dim)">No segments (v1 mode)</div>';
+    return;
+  }
+  document.getElementById('segmentCards').innerHTML = world.segments.map((s, i) => `
+    <div class="segment-card">
+      <div class="segment-header">
+        <span class="segment-name">Segment ${i}</span>
+        <span class="segment-badge" style="background:${SEG_COLORS[i]}22;color:${SEG_COLORS[i]}">${s.count} users (${s.pct}%)</span>
+      </div>
+      <div class="segment-stats">
+        <div class="segment-stat"><div class="segment-stat-value">$${s.wtp_median}</div><div class="segment-stat-label">Median WTP</div></div>
+        <div class="segment-stat"><div class="segment-stat-value">${s.elasticity_mu}</div><div class="segment-stat-label">Price Sensitivity</div></div>
+        <div class="segment-stat"><div class="segment-stat-value">${(s.quality_bar*100).toFixed(0)}%</div><div class="segment-stat-label">Quality Bar</div></div>
+        <div class="segment-stat"><div class="segment-stat-value">${(s.churn_base*100).toFixed(0)}%</div><div class="segment-stat-label">Base Churn</div></div>
+      </div>
+      <div class="pain-tags">${s.top_pains.map(p => `<span class="pain-tag">${p.name} (${p.count})</span>`).join('')}</div>
+    </div>`).join('');
+}
+
+function renderChannels() {
+  if (!world.channels.length) return;
+  const total = world.channels.reduce((s, c) => s + c.count, 0);
+  document.getElementById('channelChart').innerHTML = `
+    <div class="channel-bar">${world.channels.map((c, i) =>
+      `<div class="channel-segment" style="flex:${c.count};background:${CH_COLORS[i]}" title="Channel ${i}: ${c.count} users (${c.pct}%)">Ch ${i}: ${c.pct}%</div>`
+    ).join('')}</div>
+    <div style="font-size:12px;color:var(--dim);margin-top:4px">Different segments prefer different channels — targeting the wrong channel wastes ad spend</div>`;
+}
+
+function renderScatter() {
+  const container = document.getElementById('scatterPlot');
+  // Clear old dots
+  container.querySelectorAll('.scatter-dot').forEach(d => d.remove());
+
+  const W = container.clientWidth || 400, H = container.clientHeight || 300;
+  const maxWtp = Math.max(...world.user_sample.map(u => u.wtp));
+  const nSeg = world.n_segments || 1;
+
+  world.user_sample.forEach(u => {
+    const dot = document.createElement('div');
+    dot.className = 'scatter-dot';
+    const x = (u.wtp / maxWtp) * (W - 20) + 10;
+    const segBand = H / nSeg;
+    const y = (u.segment * segBand) + (Math.random() * segBand * 0.8) + segBand * 0.1;
+    dot.style.left = x + 'px';
+    dot.style.top = y + 'px';
+    dot.style.background = SEG_COLORS[u.segment % SEG_COLORS.length];
+    dot.style.width = (3 + u.n_pains * 2) + 'px';
+    dot.style.height = (3 + u.n_pains * 2) + 'px';
+    dot.title = `Seg ${u.segment} | WTP $${u.wtp} | ${u.n_pains} pains | Ch ${u.channel}`;
+    container.appendChild(dot);
+  });
+
+  document.getElementById('scatterLegend').innerHTML = world.segments.map((s, i) =>
+    `<div class="legend-item"><div class="legend-dot" style="background:${SEG_COLORS[i]}"></div>Segment ${i} (${s.count})</div>`
+  ).join('') + '<div class="legend-item" style="margin-left:16px;color:var(--dim)">Dot size = # of pains</div>';
+}
+
+// ── TAB 2: THE REVEAL ──
+
+function renderReveal() {
+  renderMapping();
+  renderDiscovery();
+  renderPriceVsWtp();
+  renderCoverage();
+}
+
+function renderMapping() {
+  const sorted = [...world.hidden_mapping].sort((a, b) => b.pain_popularity - a.pain_popularity);
+  const maxPop = Math.max(...sorted.map(m => m.pain_popularity));
+  document.getElementById('mappingChart').innerHTML = sorted.map(m => `
+    <div class="discovery-row">
+      <div style="flex:1">
+        <div style="font-size:13px;color:var(--text)">${m.pain_name}</div>
+        <div class="mapping-bar" style="width:${m.pain_popularity/maxPop*100}%;background:var(--accent)"></div>
+        <div style="font-size:10px;color:var(--dim)">${m.pain_popularity} customers</div>
+      </div>
+      <div class="mapping-arrow">→</div>
+      <div style="flex:1">
+        <div style="font-size:13px;color:var(--green)">${m.feature_name}</div>
+        <div style="font-size:10px;color:var(--dim)">Feature #${m.feature_id}</div>
+      </div>
+    </div>`).join('');
+}
+
+function renderDiscovery() {
+  const el = document.getElementById('discoveryAnalysis');
+  if (!manifest) {
+    el.innerHTML = '<div style="color:var(--dim)">No episode data — run an eval first to see discovery analysis</div>';
+    return;
+  }
+  // Figure out what the agent built
+  const built = new Set();
+  manifest.actions.forEach(a => { if (a.build !== null && a.build !== undefined) built.add(a.build); });
+
+  // Map built features to discovered pains
+  const discovered = new Set();
+  world.hidden_mapping.forEach(m => { if (built.has(m.feature_id)) discovered.add(m.pain_id); });
+
+  const sorted = [...world.hidden_mapping].sort((a, b) => b.pain_popularity - a.pain_popularity);
+
+  el.innerHTML = `
+    <div style="margin-bottom:12px;font-size:13px">
+      <span style="color:var(--green)">✓ Discovered: ${discovered.size}/${world.n_pains}</span> ·
+      <span style="color:var(--dim)">○ Missed: ${world.n_pains - discovered.size}</span> ·
+      <span>Features built: ${built.size}</span>
+    </div>` +
+    sorted.map(m => {
+      const found = discovered.has(m.pain_id);
+      const cls = found ? 'discovered' : 'missed';
+      return `<div class="discovery-row ${cls}">
+        <span style="width:20px">${found ? '✓' : '○'}</span>
+        <span style="flex:1">${m.pain_name} (${m.pain_popularity} users)</span>
+        <span style="flex:1;text-align:right">${found ? m.feature_name : '—'}</span>
+      </div>`;
+    }).join('');
+}
+
+function renderPriceVsWtp() {
+  const el = document.getElementById('priceVsWtp');
+  if (!manifest) {
+    el.innerHTML = '<div style="color:var(--dim)">No episode data</div>';
+    return;
+  }
+  const lastAction = manifest.actions[manifest.actions.length - 1];
+  const agentPrice = lastAction.price || 50;
+  const buckets = world.wtp_distribution;
+  const maxCount = Math.max(...buckets.map(b => b.count));
+  const totalRange = buckets[buckets.length-1].hi - buckets[0].lo;
+  const pricePos = ((agentPrice - buckets[0].lo) / totalRange * 100);
+
+  el.innerHTML = `
+    <div style="position:relative;padding-top:24px">
+      <div class="price-line" style="left:${Math.min(98,Math.max(2,pricePos))}%">
+        <div class="price-label">Agent: $${agentPrice}</div>
+      </div>
+      <div class="histogram">${buckets.map(b =>
+        `<div class="hist-bar" style="height:${b.count/maxCount*100}%;background:${b.lo < agentPrice ? 'var(--green)' : 'var(--red)'}" title="$${b.lo}-${b.hi}: ${b.count}"></div>`
+      ).join('')}</div>
+      <div class="hist-labels"><span>$${buckets[0].lo.toFixed(0)}</span><span>Agent price: $${agentPrice}</span><span>$${buckets[buckets.length-1].hi.toFixed(0)}</span></div>
+    </div>
+    <div style="margin-top:8px;font-size:12px;color:var(--dim)">
+      <span style="color:var(--green)">■</span> Can afford (WTP ≥ price) ·
+      <span style="color:var(--red)">■</span> Priced out (WTP < price)
+    </div>`;
+}
+
+function renderCoverage() {
+  const el = document.getElementById('coverageChart');
+  if (!manifest) {
+    el.innerHTML = '<div style="color:var(--dim)">No episode data</div>';
+    return;
+  }
+  // Calculate which pains were targeted across all rounds
+  const targeted = new Set();
+  manifest.actions.forEach(a => {
+    (a.campaigns || []).forEach(c => {
+      (c.target || []).forEach(t => targeted.add(t));
+    });
+  });
+
+  const totalUsers = world.n_users;
+  let coveredUsers = 0;
+  world.pain_popularity.forEach(p => { if (targeted.has(p.id)) coveredUsers += p.count; });
+  // Users can have multiple pains, so cap at total
+  const coverage = Math.min(100, coveredUsers / totalUsers * 100);
+
+  el.innerHTML = `
+    <div style="text-align:center;margin-bottom:16px">
+      <div style="font-size:48px;font-weight:800;color:${coverage > 60 ? 'var(--green)' : 'var(--gold)'}">${coverage.toFixed(0)}%</div>
+      <div style="font-size:13px;color:var(--dim)">of addressable market targeted</div>
+    </div>
+    <div class="bar-chart">
+      ${world.pain_popularity.map(p => {
+        const hit = targeted.has(p.id);
+        return `<div class="bar-row">
+          <div class="bar-label">${hit ? '✓' : '○'} ${p.name}</div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width:${p.count/totalUsers*100*2}%;background:${hit ? 'var(--green)' : 'var(--border)'}"></div>
+            <div class="bar-value">${p.count}</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+loadSeeds();
+</script>
+</body>
+</html>
