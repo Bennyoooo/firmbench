@@ -37,8 +37,29 @@ job, launched 2026-06-21 and mirroring the qwen3-8b GRPO setup:
   ```
   Monitor: `firectl get reinforcement-fine-tuning-job veu077gh`. The GRPO reward curve (in
   the job status / Fireworks dashboard) is the RL signal — no serving needed to see it.
-- The evaluator reward is currently the **single-turn round-0 profit** (`ep_firmbench.py`,
-  the cost-probe); scaling to the full multi-turn episode reward is the next step.
+
+### ⚠️ glm-5p1 GRPO trainer FAILED (veu077gh)
+The job's **rollouts + reward worked** (`success_count: 192`, reward avg **0.48**, median
+0.75) but the glm-5p1 **trainer** container crashed: `FAILED_PRECONDITION — Training failed:
+K8s job failed: Container trainer ... exit code 1`. So GRPO *rollout/scoring* is fine on
+glm-5p1; the *training step* (RLOR trainer on the large MoE / B200) hit a precondition. Note
+glm-5p1 **SFT** succeeds (e1ek8liv) — it's specific to the RLOR GRPO trainer. qwen3-8b GRPO
+on the identical dataset/evaluator succeeds (`kby4ofja`). Options: retry, adjust shape
+(node-count / batch), use qwen3-8b/30b for GRPO, or escalate glm-5p1 RLOR support to Fireworks.
+
+### ✅ Reward upgraded: single-turn round-0 -> full multi-turn episode (disc.eff)
+`ep_firmbench.py` + `firmbench_mcp/` now provide a **multi-turn** reward (the real FirmBench
+objective). Each rollout is a full interactive episode via an eval-protocol **MCP-Gym** server
+(`firm_round` tool, one call = one round; the model sees per-campaign diagnostics and adapts).
+Reward = disc.eff = profit/oracle, dense (per-round profit/oracle summing to disc.eff). A
+single completion can't express FirmBench (round 0 has no demand signal), so the reward must
+be interactive. Validated: unit (summed reward == disc.eff exactly — oracle 1.000, scripted
+0.43, naive 0.016) + e2e (glm-5p1 drove full episodes through the MCP-Gym, scored, no errors).
+Entry: `firmbench_episode` (multi-turn); `firmbench_round_profit` kept as the legacy probe.
+Launch needs the MCP server (`--mcp-server firmbench_mcp/server.py`) + a working GRPO trainer
+(use qwen3-8b until glm-5p1's RLOR trainer is unblocked). Local smoke test:
+`EP_MODEL=fireworks_ai/accounts/fireworks/models/glm-5p1 EP_SEEDS=2 PATH=$HOME/.local/bin:$PATH
+python3 -m pytest ep_firmbench.py -k firmbench_episode -s` (needs a `python` shim ->python3).
 
 The supervised run below still completed and is kept for the record.
 
