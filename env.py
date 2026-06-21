@@ -232,6 +232,12 @@ async def probe_market(target_pains: list[int], spend: float,
     camp_entry["target"] = sorted(target)
     _CURRENT_ROUND_ACTION["campaigns"].append(camp_entry)
     result = _ENV._run_campaign(target, float(spend))
+    # Store campaign results in the action log for replay viewer
+    camp_entry["audience"] = result.get("audience", 0)
+    camp_entry["impressions"] = result.get("impressions", 0)
+    camp_entry["tries"] = result.get("tries", 0)
+    camp_entry["purchases"] = result.get("purchases", 0)
+    camp_entry["revenue"] = result.get("revenue", 0)
     out = {k: v for k, v in result.items() if k != "spend"}
     if craft != 1.0:
         out["craft_score"] = craft
