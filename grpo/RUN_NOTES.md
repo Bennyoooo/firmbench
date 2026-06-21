@@ -45,3 +45,14 @@
 - v2 job: **qxcfrbww**, output **accounts/bennyjxh/models/firmbench-glm5p1-grpo-v2**
   GRPO, lora16, epochs 3, candidates 4 (was 8), max_output_tokens 3072 (was 4096),
   max_concurrent_rollouts 16 (was 8). Expect ~3-4x faster.
+
+## v3 = the good run (06:34 UTC)  job ymrer252 -> firmbench-glm5p1-grpo-v3
+- v2 (qxcfrbww) EARLY_STOPPED: "zero variance in scores" — clipped [0,1] reward tied
+  losing plans at 0 / good at ~1; 4 candidates too few. Fix: UNCLIP reward (bounded
+  [-1,1.5]) + temp 1.0 + 8 candidates. Verified locally: within-group std 0.6-0.8.
+- Also fixed: pytest discovery hung importing monitor.py (module-level while True) and
+  base_eval.py (module-level exec). Guarded base_eval; moved monitor out of grpo/
+  (-> ../grpo_monitor.py). Committed reward change so eval-protocol re-uploaded (--force
+  only re-uploads on a new git hash).
+- v3 PASSED the variance check -> training (Epoch 1/3). curves field will fill with
+  per-epoch Score = the learning curve. Monitor: ../grpo_monitor.py (PID logged).

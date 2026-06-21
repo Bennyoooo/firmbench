@@ -34,17 +34,18 @@ def one(args):
     return gt["seed"], max(0.0, min(1.0, profit / (gt["oracle"] or 1)))
 
 
-tasks = [(row, k) for row in rows for k in range(K)]
-with ThreadPoolExecutor(max_workers=16) as ex:
-    out = list(ex.map(one, tasks))
+if __name__ == "__main__":  # guard so eval-protocol test discovery can import safely
+    tasks = [(row, k) for row in rows for k in range(K)]
+    with ThreadPoolExecutor(max_workers=16) as ex:
+        out = list(ex.map(one, tasks))
 
-by_seed = {}
-for s, sc in out:
-    by_seed.setdefault(s, []).append(sc)
-allscores = [sc for _, sc in out]
-print(f"model={MODEL}  K={K}  n={len(out)}")
-print(f"MEAN reward={mean(allscores):.3f}  std={pstdev(allscores):.3f}  "
-      f"min={min(allscores):.3f}  max={max(allscores):.3f}")
-# per-prompt variance (does GRPO have signal within a prompt-group?)
-intra = mean(pstdev(v) for v in by_seed.values() if len(v) > 1)
-print(f"mean intra-prompt std={intra:.3f}  (GRPO needs >0)")
+    by_seed = {}
+    for s, sc in out:
+        by_seed.setdefault(s, []).append(sc)
+    allscores = [sc for _, sc in out]
+    print(f"model={MODEL}  K={K}  n={len(out)}")
+    print(f"MEAN reward={mean(allscores):.3f}  std={pstdev(allscores):.3f}  "
+          f"min={min(allscores):.3f}  max={max(allscores):.3f}")
+    # per-prompt variance (does GRPO have signal within a prompt-group?)
+    intra = mean(pstdev(v) for v in by_seed.values() if len(v) > 1)
+    print(f"mean intra-prompt std={intra:.3f}  (GRPO needs >0)")
