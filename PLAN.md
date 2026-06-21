@@ -53,9 +53,14 @@
   `--selftest` (mock model, no network) validates the whole machinery and shows the
   curve bend: **−734 → 15,524** mean held-out reward, flags 5/8 → 0/8. The verifier
   *curates the training set* — only profitable, non-cheating episodes become SFT data.
-- [ ] **Real RFT run** — execute `python3 rft.py --run` with `FIREWORKS_API_KEY` +
-  `firectl` (base = Llama 3.2 3B, demo scale: 16 worlds × 4 rollouts, 2 iters).
-  Blocked only on credentials/firectl in the run environment.
+- [~] **Real RFT run** (`rft.py --run`, `RFT_RUN.md`) — executed on Fireworks with
+  `glm-5p1` (only serverless model that trains+serves LoRA cheaply). Base eval
+  **−409.6** mean reward (loses money). 24 real rollouts → **cold start**: zero
+  winning trajectories (frontier models score ~0 here), so we bootstrap with 240
+  expert (`ScriptedExperimenter`) turns. Dataset uploaded to Fireworks (READY);
+  firectl installed + authed; SFT command validated. **Blocked on $50 training
+  credits** (new account is Tier 1; glm-5p1 needs B200/B300 quota). Adding credits
+  → one command finishes train→serve→eval. See `RFT_RUN.md`.
 - [ ] Run `hud eval` with Claude / frontier models on held-out seeds
 - [ ] Multi-model leaderboard (Claude / GPT / Gemini / Fireworks open)
 - [ ] Phase 3 — NL artifact layer (ad copy + spec → craft translator)
