@@ -12,3 +12,9 @@ artifacts_iter1_backup/
 rft_gcp_out/
 artifacts_iter2_phase_a_demo/
 rl_grpo_out/
+grpo/sim.py
+grpo/agent.py
+grpo/*.jsonl
+grpo/*.log
+grpo/.ep_tmp/
+grpo/__pycache__/

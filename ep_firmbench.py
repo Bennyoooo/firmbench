@@ -43,13 +43,13 @@ def _dataset():
 @evaluation_test(
     input_rows=[_dataset()],
     completion_params=[{
-        "model": "accounts/fireworks/models/qwen3-8b",
+        "model": "accounts/fireworks/models/glm-5p1",
         "temperature": 0.7,
         "max_tokens": 2048,
     }],
     mode="pointwise",
 )
-def firmbench_round_profit(row: EvaluationRow) -> EvaluationRow:
+def test_firmbench_grpo(row: EvaluationRow) -> EvaluationRow:
     """Reward = normalized one-step profit of the model's action on its world."""
     seed = (row.ground_truth or {}).get("seed", 1)
     world = generate_world(seed, cfg)
