@@ -10,16 +10,17 @@ grades them with the verifier, computes a **group-relative advantage** (the GRPO
 suppressed. FirmBench is a textbook RL-with-verifiable-rewards (RLVR) task: the held-out
 verifier (run.Verifier) IS the reward function.
 
-It's the same RL shape as run.py's `train_reinforce`, lifted from a 2-param toy policy to
-(a) a richer GRPO objective and (b) the Gemma LLM as the policy.
+It's the same RL shape as run.py's `train_reinforce`, lifted from a hand-tuned REINFORCE
+to (a) a proper GRPO objective and (b) the Gemma LLM as the policy.
 
 Multi-turn handling (episode = 10 LLM calls, one scalar reward): trajectory-level credit
 assignment — the episode's group-relative advantage is broadcast to every turn's tokens.
 
 Two ways to run:
-  python3 rl_grpo.py --selftest    # offline, CPU, no torch/GPU. A tabular probe-vs-exploit
-                                    # policy is optimized by the REAL GRPO loop; prints the
-                                    # reward curve bending. Validates the RL machinery.
+  python3 rl_grpo.py --selftest    # offline, CPU, no torch/GPU. The REAL GRPO loop
+                                    # optimizes a categorical policy over FirmBench
+                                    # probe->exploit schedules and prints the reward curve
+                                    # bending. Validates the GRPO machinery end-to-end.
 
   python3 rl_grpo.py --run         # real GRPO on a Gemma open model (needs GPU + torch +
                                     # transformers + peft). Open weights are REQUIRED — you
@@ -41,14 +42,15 @@ from statistics import mean, pstdev
 
 from sim import (Config, generate_world, FirmEnv, OraclePolicy,
                  best_price_for, run_episode)
-from run import Verifier, RLProbeExploitPolicy
+from run import Verifier
 
 DEFAULT_MODEL = os.environ.get("RL_BASE_MODEL", "google/gemma-2-2b-it")
 
 
 # ============================================================================
 # GRPO core (policy-agnostic): group-relative advantage + clipped surrogate.
-# These functions are shared by the tabular selftest and the Gemma trainer.
+# These two functions are shared by the tabular selftest and the Gemma trainer —
+# the actual RL algorithm lives here, independent of how logπ is computed.
 # ============================================================================
 
 def group_advantages(rewards):
@@ -56,23 +58,23 @@ def group_advantages(rewards):
 
     A_i = (R_i - mean) / (std + eps). This replaces the value network — the group
     mean is the baseline, so above-average episodes get positive advantage and
-    below-average ones get negative advantage (the part SFT-on-winners can't do).
+    below-average ones get NEGATIVE advantage (the part SFT-on-winners can't do).
     """
     if len(rewards) <= 1:
         return [0.0 for _ in rewards]
     m = mean(rewards)
     s = pstdev(rewards)
     if s < 1e-8:
-        return [0.0 for _ in rewards]  # no signal to separate them
+        return [0.0 for _ in rewards]  # whole group tied → no signal
     return [(r - m) / s for r in rewards]
 
 
 def clipped_surrogate_coef(advantage, ratio, clip_eps):
-    """PPO/GRPO clipped objective, returned as the scalar multiplying d(logp)/dθ.
+    """PPO/GRPO clipped objective, returned as the scalar multiplying d(logπ)/dθ.
 
-    surrogate = min(ratio * A, clip(ratio, 1-eps, 1+eps) * A).
-    d/dθ[ratio * A] = A * ratio * d(logp)/dθ. In the clipped region the gradient is 0
-    (the objective is flat), exactly as in PPO. Returns (coef, was_clipped).
+    surrogate = min(ratio·A, clip(ratio, 1-eps, 1+eps)·A).
+    d/dθ[ratio·A] = A·ratio·d(logπ)/dθ. In the clipped region the gradient is 0 (the
+    objective is flat), exactly as in PPO. Returns (coef, was_clipped).
     """
     if advantage >= 0:
         clipped = ratio > 1.0 + clip_eps
@@ -83,13 +85,13 @@ def clipped_surrogate_coef(advantage, ratio, clip_eps):
 
 
 # ============================================================================
-# Reward (= run.Verifier discovery efficiency), with oracle cached per seed so
-# the hot training loop doesn't recompute the oracle thousands of times.
+# Reward (= run.Verifier discovery efficiency = profit/oracle in [0,1]), with the
+# oracle cached per seed so the hot RL loop doesn't recompute it thousands of times.
 # ============================================================================
 
 class RewardFn:
     """profit / oracle clipped to [0,1] — identical to run.Verifier.grade()['reward'],
-    but memoized per seed. We keep a real Verifier around for parity checks at eval."""
+    memoized per seed. A real Verifier is kept for parity checks."""
 
     def __init__(self, cfg):
         self.cfg = cfg
@@ -107,52 +109,33 @@ class RewardFn:
 
 
 # ============================================================================
-# Tabular policy backend (offline selftest) — a stochastic probe-vs-exploit
-# policy whose per-round Bernoulli decisions expose log-probs, so the GRPO loop
-# can optimize its 2 parameters. Same decision structure as run.RLProbeExploitPolicy.
+# Tabular policy backend (offline selftest).
+#
+# A CATEGORICAL policy over FirmBench probe->exploit SCHEDULES: the action is the
+# switch round k (probe/discover for rounds < k, then exploit the discovered
+# pain->feature map for the rest). reward(k) has a clear interior optimum (k≈6),
+# so the GRPO loop has something real to learn and held-out reward visibly bends.
+# This is the exact GRPO algorithm the Gemma path uses, on a policy we can train
+# on CPU with no torch.
 # ============================================================================
 
-def _sigmoid(z):
-    return 1.0 / (1.0 + math.exp(-max(-30.0, min(30.0, z))))
+class ScheduledFirmPolicy:
+    """Probe/discover for rounds < k, then exploit. k is the (learned) action."""
 
-
-class GRPOProbeExploitPolicy(RLProbeExploitPolicy):
-    """Like RLProbeExploitPolicy but records, per decision, the (action, feature) pair
-    needed to RE-evaluate its log-prob under updated θ (for the importance ratio).
-
-    decision: probe ~ Bernoulli(p), p = sigmoid(θ0 + θ1 * unsolved_frac).
-    We store (a in {0,1}, x = unsolved_frac) each round so logπ_θ(a|x) is recomputable.
-    """
+    def __init__(self, world, switch_k, seed=0):
+        self.w = world
+        self.k = switch_k
 
     def reset(self):
-        super().reset()
-        self.decisions = []  # list of (a, x)
+        self.pain_demand = {}
+        self.solved = {}
+        self.tried = set()
+        self._last_built = None
 
     def act(self, env, obs):
-        # Mirror the parent's decision points but capture (a, x). We reimplement the
-        # probe branch so we can record x; everything else delegates to the parent's
-        # ingest/exploit logic by calling super().act after fixing the RNG draw.
-        cfg = self.w.cfg
-        # ingest diagnostics + round-0 probe are identical to parent; reuse by peeking.
-        if obs["round"] == 0:
-            return super().act(env, obs)
-
-        # recompute the feature x the parent would use, and the decision, recording both
-        n_pains = cfg.n_pains
-        unsolved = max(0, n_pains - len(self.solved))
-        x = unsolved / n_pains
-        p = _sigmoid(self.theta[0] + self.theta[1] * x)
-        a = 1 if self.rng.random() < p else 0
-        self.decisions.append((a, x))
-        # now drive the parent's machinery with this exact decision: temporarily force
-        # its RNG so its internal `probe = rng.random() < p_probe` matches `a`.
-        self._forced_probe = (a == 1)
-        return self._act_with_forced_probe(env, obs)
-
-    def _act_with_forced_probe(self, env, obs):
-        """Parent's act() body but using self._forced_probe instead of an RNG draw."""
         cfg = self.w.cfg
         built = set(obs["built_features"])
+        # ingest diagnostics from last round's campaigns
         for c in obs["per_campaign"]:
             tgt = c["target"]
             if len(tgt) == 1:
@@ -163,146 +146,135 @@ class GRPOProbeExploitPolicy(RLProbeExploitPolicy):
                     self.solved[p] = self._last_built
         self._last_built = None
 
-        probe = self._forced_probe
-        top_pains = sorted(self.pain_demand, key=self.pain_demand.get, reverse=True)
-        unsolved_top = [p for p in top_pains if p not in self.solved]
+        if obs["round"] == 0:  # round 0: probe all pains cheaply to size demand
+            return {"build": None, "price": 50.0,
+                    "campaigns": [{"target": {p}, "spend": 10.0} for p in range(cfg.n_pains)]}
 
-        if probe and unsolved_top and obs["round"] < cfg.horizon - 1:
-            candidates = [x for x in range(cfg.n_features)
-                          if x not in built and x not in self.tried_features]
-            f = candidates[0] if candidates else None
+        top = sorted(self.pain_demand, key=self.pain_demand.get, reverse=True)
+        unsolved_top = [p for p in top if p not in self.solved]
+
+        # DISCOVER while round < k: build the next feature + cheap diagnostic probes
+        if obs["round"] < self.k and unsolved_top and obs["round"] < cfg.horizon - 1:
+            cand = [x for x in range(cfg.n_features)
+                    if x not in built and x not in self.tried]
+            f = cand[0] if cand else None
             if f is not None:
-                self.tried_features.add(f)
+                self.tried.add(f)
                 self._last_built = f
-                # Pure DISCOVERY this round: small diagnostic probes, NO big exploit
-                # campaign. This makes explore vs exploit a real tradeoff — so a
-                # probe-early / exploit-late SCHEDULE strictly beats always-probe, giving
-                # GRPO a learnable gap that shows up in greedy held-out eval.
-                test_targets = unsolved_top[:6]
-                campaigns = [{"target": {p}, "spend": 60.0} for p in test_targets]
-                return {"build": f, "price": 50.0, "campaigns": campaigns}
+                return {"build": f, "price": 50.0,
+                        "campaigns": [{"target": {p}, "spend": 60.0} for p in unsolved_top[:6]]}
 
+        # EXPLOIT: full budget on the discovered pains at the best price
         if self.solved:
             target = set(self.solved.keys())
-            built_map = {x: 1.0 for x in built}
-            price = best_price_for(self.w, built_map, target)
-            spend = max(0.0, obs["cash"])
-            return {"build": None, "price": price,
-                    "campaigns": [{"target": target, "spend": spend}]}
+            bm = {x: 1.0 for x in built}
+            return {"build": None, "price": best_price_for(self.w, bm, target),
+                    "campaigns": [{"target": target, "spend": max(0.0, obs["cash"])}]}
 
-        target = set(top_pains[:3]) if top_pains else {0, 1, 2}
+        target = set(top[:3]) if top else {0, 1, 2}
         return {"build": None, "price": 50.0,
                 "campaigns": [{"target": target, "spend": min(500.0, obs["cash"])}]}
 
 
-def _rollout_tabular(world, theta, seed):
-    """Run one stochastic episode; return (profit, decisions=[(a,x)...])."""
-    pol = GRPOProbeExploitPolicy(world, theta=list(theta), seed=seed)
-    profit = run_episode(world, pol)
-    return profit, pol.decisions
+def _softmax(logits):
+    m = max(logits)
+    ex = [math.exp(l - m) for l in logits]
+    z = sum(ex)
+    return [e / z for e in ex]
 
 
-def _logp_tabular(theta, a, x):
-    p = _sigmoid(theta[0] + theta[1] * x)
-    p = min(max(p, 1e-6), 1 - 1e-6)
-    return math.log(p) if a == 1 else math.log(1 - p)
+def _sample_cat(probs, rng):
+    r = rng.random()
+    c = 0.0
+    for i, p in enumerate(probs):
+        c += p
+        if r <= c:
+            return i
+    return len(probs) - 1
 
 
-def _dlogp_tabular(theta, a, x):
-    """∂logπ_θ(a|x)/∂θ for a Bernoulli-sigmoid head: (a - p) and (a - p)·x."""
-    p = _sigmoid(theta[0] + theta[1] * x)
-    g = (a - p)
-    return [g, g * x]
+def _logp_cat(logits, i):
+    return math.log(max(_softmax(logits)[i], 1e-12))
+
+
+def _dlogp_cat(logits, i):
+    """∂logπ(i)/∂logit_j = 1[j=i] - softmax_j."""
+    p = _softmax(logits)
+    return [(1.0 if j == i else 0.0) - p[j] for j in range(len(logits))]
 
 
 def grpo_train_tabular(train_seeds, eval_seeds, cfg, *, iterations, group_size,
                        lr, clip_eps, kl_coef, inner_epochs, out_dir, seed=0):
-    """The GRPO loop over the tabular policy. This is genuine RL: group-relative
-    advantage + clipped importance-weighted policy gradient + KL to a frozen reference."""
+    """GRPO over the categorical schedule policy. Genuine RL: group-relative advantage
+    + clipped importance-weighted policy gradient + KL to a frozen reference."""
     rng = random.Random(seed)
-    theta = [0.0, 0.0]
-    theta_ref = list(theta)          # frozen reference for the KL penalty
+    n_actions = cfg.horizon                  # action = switch round k in 1..horizon
+    logits = [0.0] * n_actions               # start uniform
+    logits_ref = list(logits)                # frozen reference for the KL term
     rfn = RewardFn(cfg)
-    curve = []
+    rcache = {}                              # (seed, k) -> reward (sim is deterministic)
+    worlds = {s: generate_world(s, cfg) for s in set(train_seeds) | set(eval_seeds)}
 
-    base = eval_tabular(theta, eval_seeds, cfg, rfn)
-    curve.append({"iter": 0, "eval_reward": base})
-    print(f"[iter 0] base policy  eval mean_reward(disc_eff)={base:.3f}  theta={_fmt(theta)}")
+    def reward_of(s, k):
+        key = (s, k)
+        if key not in rcache:
+            prof = run_episode(worlds[s], ScheduledFirmPolicy(worlds[s], k))
+            rcache[key] = rfn.reward(s, worlds[s], prof)
+        return rcache[key]
+
+    def expected_eval(lg):
+        """Exact expected held-out reward under the current policy (no sampling noise)."""
+        probs = _softmax(lg)
+        return mean(sum(probs[i] * reward_of(s, i + 1) for i in range(n_actions))
+                    for s in eval_seeds)
+
+    curve = [{"iter": 0, "eval_reward": expected_eval(logits)}]
+    print(f"[iter 0] base policy  eval E[reward]={curve[0]['eval_reward']:.3f}  "
+          f"argmax_k={max(range(n_actions), key=lambda i: logits[i]) + 1}")
 
     for it in range(1, iterations + 1):
-        theta_old = list(theta)      # behavior policy for this batch (ratio denominator)
-        batch = []                   # list of episodes: {adv, decisions, logp_old}
-
+        logits_old = list(logits)
+        probs_old = _softmax(logits_old)
+        batch = []   # {adv, action_i, logp_old}
         for s in train_seeds:
-            world = generate_world(s, cfg)
-            group = [_rollout_tabular(world, theta_old, seed=s * 1000 + it * 31 + k)
-                     for k in range(group_size)]
-            rewards = [rfn.reward(s, world, prof) for prof, _ in group]
+            actions = [_sample_cat(probs_old, rng) for _ in range(group_size)]
+            rewards = [reward_of(s, i + 1) for i in actions]
             advs = group_advantages(rewards)
-            for (prof, decisions), A in zip(group, advs):
-                logp_old = [_logp_tabular(theta_old, a, x) for (a, x) in decisions]
-                batch.append({"adv": A, "decisions": decisions, "logp_old": logp_old})
+            for i, A in zip(actions, advs):
+                batch.append({"adv": A, "i": i, "logp_old": _logp_cat(logits_old, i)})
 
-        # K inner epochs of clipped policy-gradient ascent on the collected batch
-        n_terms = max(1, sum(len(e["decisions"]) for e in batch))
         for _ep in range(inner_epochs):
-            grad = [0.0, 0.0]
+            grad = [0.0] * n_actions
             clip_hits = 0
             for e in batch:
-                A = e["adv"]
-                for (a, x), lp_old in zip(e["decisions"], e["logp_old"]):
-                    lp_new = _logp_tabular(theta, a, x)
-                    ratio = math.exp(max(-30.0, min(30.0, lp_new - lp_old)))
-                    coef, clipped = clipped_surrogate_coef(A, ratio, clip_eps)
-                    clip_hits += int(clipped)
-                    d = _dlogp_tabular(theta, a, x)
-                    grad[0] += coef * d[0]
-                    grad[1] += coef * d[1]
-                    # KL(π_θ || π_ref) penalty, k1 estimator gradient: -kl·(logπ-logπ_ref)·∇logπ
-                    lp_ref = _logp_tabular(theta_ref, a, x)
-                    kl_w = kl_coef * (lp_new - lp_ref)
-                    grad[0] -= kl_w * d[0]
-                    grad[1] -= kl_w * d[1]
-            theta[0] += lr * grad[0] / n_terms
-            theta[1] += lr * grad[1] / n_terms
+                A, i = e["adv"], e["i"]
+                lp_new = _logp_cat(logits, i)
+                ratio = math.exp(max(-30.0, min(30.0, lp_new - e["logp_old"])))
+                coef, clipped = clipped_surrogate_coef(A, ratio, clip_eps)
+                clip_hits += int(clipped)
+                d = _dlogp_cat(logits, i)
+                lp_ref = _logp_cat(logits_ref, i)
+                kl_w = kl_coef * (lp_new - lp_ref)        # KL(π‖ref), k1-estimator grad
+                for j in range(n_actions):
+                    grad[j] += (coef - kl_w) * d[j]
+            n = max(1, len(batch))
+            for j in range(n_actions):
+                logits[j] += lr * grad[j] / n
 
-        ev = eval_tabular(theta, eval_seeds, cfg, rfn)
-        curve.append({"iter": it, "eval_reward": ev, "theta": list(theta)})
+        ev = expected_eval(logits)
+        curve.append({"iter": it, "eval_reward": ev,
+                      "argmax_k": max(range(n_actions), key=lambda i: logits[i]) + 1})
         if it % max(1, iterations // 10) == 0 or it == iterations:
-            print(f"[iter {it:3d}] eval mean_reward(disc_eff)={ev:.3f}  theta={_fmt(theta)}  "
-                  f"clip_frac={clip_hits/(n_terms*inner_epochs):.2f}")
+            print(f"[iter {it:3d}] eval E[reward]={ev:.3f}  "
+                  f"argmax_k={curve[-1]['argmax_k']}  clip_frac={clip_hits/(n*inner_epochs):.2f}")
 
-    _print_curve(curve, label="GRPO (tabular policy) — RL reward curve")
+    _print_curve(curve, label="GRPO (categorical schedule policy) — RL reward curve")
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, "grpo_curve.json"), "w") as f:
-        json.dump({"curve": curve, "theta": theta,
+        json.dump({"curve": curve, "final_probs": _softmax(logits),
                    "config": {"group_size": group_size, "lr": lr, "clip": clip_eps,
                               "kl": kl_coef, "inner_epochs": inner_epochs}}, f, indent=2)
-    return theta, curve
-
-
-def eval_tabular(theta, eval_seeds, cfg, rfn):
-    """Greedy eval: probe iff p_probe >= 0.5. Mean disc_eff over held-out seeds."""
-    vals = []
-    for s in eval_seeds:
-        world = generate_world(s, cfg)
-        pol = _GreedyProbeExploit(world, theta=list(theta), seed=s)
-        profit = run_episode(world, pol)
-        vals.append(rfn.reward(s, world, profit))
-    return mean(vals) if vals else 0.0
-
-
-class _GreedyProbeExploit(GRPOProbeExploitPolicy):
-    """Deterministic version for eval: decision = (p_probe >= 0.5)."""
-
-    def act(self, env, obs):
-        if obs["round"] == 0:
-            return RLProbeExploitPolicy.act(self, env, obs)
-        cfg = self.w.cfg
-        x = max(0, cfg.n_pains - len(self.solved)) / cfg.n_pains
-        p = _sigmoid(self.theta[0] + self.theta[1] * x)
-        self._forced_probe = (p >= 0.5)
-        return self._act_with_forced_probe(env, obs)
+    return logits, curve
 
 
 # ============================================================================
@@ -368,9 +340,8 @@ def grpo_train_gemma(train_seeds, eval_seeds, cfg, *, iterations, group_size,
         history, turns = [], []
         done = False
         while not done:
-            sys_t = system_prompt(cfg)
-            usr_t = format_obs(obs, cfg, history)
-            prompt_text = f"<system>\n{sys_t}\n</system>\n<user>\n{usr_t}\n</user>\n"
+            prompt_text = (f"<system>\n{system_prompt(cfg)}\n</system>\n"
+                           f"<user>\n{format_obs(obs, cfg, history)}\n</user>\n")
             ids = tok(prompt_text, return_tensors="pt").input_ids.to(device)
             with torch.no_grad():
                 out = model.generate(ids, do_sample=True, temperature=0.7, top_p=0.95,
@@ -393,7 +364,7 @@ def grpo_train_gemma(train_seeds, eval_seeds, cfg, *, iterations, group_size,
             advs = group_advantages(rewards)
             for (prof, turns), A in zip(group, advs):
                 batch.append({"adv": A, "turns": turns})
-            print(f"  [iter {it}] seed {s}: rewards={[round(r,2) for r in rewards]}")
+            print(f"  [iter {it}] seed {s}: rewards={[round(r, 2) for r in rewards]}")
 
         for _ep in range(inner_epochs):
             opt.zero_grad()
@@ -404,11 +375,9 @@ def grpo_train_gemma(train_seeds, eval_seeds, cfg, *, iterations, group_size,
                 for (prompt_text, completion_text, old_lp) in e["turns"]:
                     new_lp = _completion_logprob(prompt_text, completion_text, grad=True)
                     ratio = torch.exp(torch.clamp(new_lp - old_lp, -30, 30))
-                    unclipped = ratio * A
-                    clipped = torch.clamp(ratio, 1 - clip_eps, 1 + clip_eps) * A
-                    surrogate = torch.min(unclipped, clipped)
-                    # KL-to-ref proxy: keep the policy near the rollout policy (old_lp).
-                    kl = (new_lp - old_lp)
+                    surrogate = torch.min(ratio * A,
+                                          torch.clamp(ratio, 1 - clip_eps, 1 + clip_eps) * A)
+                    kl = (new_lp - old_lp)              # KL-to-rollout-policy proxy
                     total_loss = total_loss - surrogate + kl_coef * kl
                     n += 1
             (total_loss / max(1, n)).backward()
@@ -455,25 +424,20 @@ def _eval_gemma(model, tok, eval_seeds, cfg, rfn, device,
 # pretty-printing
 # ============================================================================
 
-def _fmt(theta):
-    return "[" + ", ".join(f"{t:+.3f}" for t in theta) + "]"
-
-
 def _print_curve(curve, label):
     print("\n" + "=" * 60)
     print(label)
     print("=" * 60)
     rewards = [c["eval_reward"] for c in curve]
-    hi = max(rewards) if rewards else 1.0
-    span = max(1e-6, hi)
+    span = max(1e-6, max(rewards) if rewards else 1.0)
     for c in curve:
         r = c["eval_reward"]
         bar = "#" * int(40 * max(0.0, r) / span)
         print(f"  iter {c['iter']:>3}  {r:>7.3f}  {bar}")
     base_r, final_r = rewards[0], rewards[-1]
     delta = final_r - base_r
-    print("-" * 60)
     pct = (delta / abs(base_r) * 100) if base_r else float("inf")
+    print("-" * 60)
     print(f"BASE -> GRPO: {base_r:.3f} -> {final_r:.3f}   "
           f"({'+' if delta >= 0 else ''}{delta:.3f}, {pct:+.0f}%)")
     print("=" * 60)
@@ -486,14 +450,14 @@ def _print_curve(curve, label):
 def main():
     ap = argparse.ArgumentParser(description="FirmBench GRPO (true RL) trainer")
     ap.add_argument("--selftest", action="store_true",
-                    help="offline CPU RL demo (tabular policy, real GRPO loop)")
+                    help="offline CPU RL demo (categorical schedule policy, real GRPO loop)")
     ap.add_argument("--run", action="store_true",
                     help="real GRPO on a Gemma open model (needs GPU + torch)")
     ap.add_argument("--iterations", type=int, default=40)
-    ap.add_argument("--group-size", type=int, default=8, help="rollouts per world (the GRPO group)")
-    ap.add_argument("--train-seeds", type=int, default=8)
+    ap.add_argument("--group-size", type=int, default=10, help="rollouts per world (the GRPO group)")
+    ap.add_argument("--train-seeds", type=int, default=10)
     ap.add_argument("--eval-seeds", type=int, default=8)
-    ap.add_argument("--lr", type=float, default=0.3)
+    ap.add_argument("--lr", type=float, default=None, help="default: 1.0 (selftest) / 1e-5 (run)")
     ap.add_argument("--clip", type=float, default=0.2)
     ap.add_argument("--kl", type=float, default=0.01)
     ap.add_argument("--inner-epochs", type=int, default=4)
@@ -509,27 +473,31 @@ def main():
     cfg = Config()
     train_seeds = list(range(1, 1 + args.train_seeds))
     eval_seeds = list(range(100, 100 + args.eval_seeds))   # disjoint held-out
+    lr = args.lr if args.lr is not None else (1.0 if args.selftest else 1e-5)
 
     print("=" * 60)
     print("FirmBench — GRPO (Group Relative Policy Optimization) — TRUE RL")
     print(f"mode={'selftest' if args.selftest else 'run'}  "
-          f"{'policy=tabular' if args.selftest else 'model=' + args.model}")
+          f"{'policy=categorical-schedule' if args.selftest else 'model=' + args.model}")
     print(f"iterations={args.iterations}  group_size={args.group_size}  "
           f"train_worlds={len(train_seeds)}  eval_worlds={len(eval_seeds)}")
-    print(f"lr={args.lr}  clip={args.clip}  kl={args.kl}  inner_epochs={args.inner_epochs}")
+    print(f"lr={lr}  clip={args.clip}  kl={args.kl}  inner_epochs={args.inner_epochs}")
     print("=" * 60 + "\n")
 
     if args.selftest:
         grpo_train_tabular(train_seeds, eval_seeds, cfg,
                            iterations=args.iterations, group_size=args.group_size,
-                           lr=args.lr, clip_eps=args.clip, kl_coef=args.kl,
+                           lr=lr, clip_eps=args.clip, kl_coef=args.kl,
                            inner_epochs=args.inner_epochs, out_dir=args.out)
     else:
-        grpo_train_gemma(train_seeds, eval_seeds, cfg,
-                         iterations=args.iterations, group_size=args.group_size,
-                         lr=args.lr, clip_eps=args.clip, kl_coef=args.kl,
-                         inner_epochs=args.inner_epochs, model_name=args.model,
-                         out_dir=args.out)
+        try:
+            grpo_train_gemma(train_seeds, eval_seeds, cfg,
+                             iterations=args.iterations, group_size=args.group_size,
+                             lr=lr, clip_eps=args.clip, kl_coef=args.kl,
+                             inner_epochs=args.inner_epochs, model_name=args.model,
+                             out_dir=args.out)
+        except RuntimeError as e:
+            print(f"\nERROR: {e}")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,6 @@
+# True RL (GRPO) on Gemma open weights — rl_grpo.py --run. Needs a GPU.
+# The offline RL demo (rl_grpo.py --selftest) needs NONE of these (pure stdlib).
+torch>=2.2
+transformers>=4.44      # Gemma 2 support
+peft>=0.11              # LoRA adapters
+accelerate>=0.30
