@@ -58,6 +58,7 @@ class Config:
     churn_base: float = 0.10
     churn_price_coef: float = 0.30     # churn rises when price > wtp
     churn_quality_coef: float = 0.30   # churn rises when fulfilled < quality_bar
+    readopt_rate: float = 0.0          # prob a churned user returns to prospects / round (0 = gone for good)
 
     @classmethod
     def phase_a(cls, scale_budget=True, **overrides):
@@ -326,7 +327,10 @@ class FirmEnv:
         self.round = 0
         self.done = False
         self.total_profit = 0.0
-        self.base = {}           # segment_id -> expected active subscribers (LTV; latent)
+        # subscriber lifecycle (LTV): per-user probabilities; prospect = 1 - sub - churned.
+        # Only prospects can be acquired; churned users don't return (unless readopt_rate>0).
+        self.sub = {} if self.cfg.use_retention else None       # user_idx -> currently subscribed
+        self.churned = {} if self.cfg.use_retention else None   # user_idx -> churned (gone)
         return self._state_obs(per_campaign=[])
 
     def _state_obs(self, per_campaign):
@@ -359,7 +363,8 @@ class FirmEnv:
             p *= sigmoid(cfg.quality_gate_k * (ff - user.quality_bar))   # soft quality gate
         return p
 
-    def _run_campaign(self, target: set, spend: float, channel: int = 0, craft: float = 1.0):
+    def _run_campaign(self, target: set, spend: float, channel: int = 0, craft: float = 1.0,
+                      commit: bool = False):
         cfg = self.cfg
         target = set(target)
         # matching pool: users sharing >=1 targeted pain (deterministic order by idx)
@@ -378,7 +383,6 @@ class FirmEnv:
         purchases = 0.0
         bounced_quality = 0.0      # resonated + reached, but blocked by the quality bar
         bounced_price = 0.0        # passed quality, but lost on price
-        by_segment = {}            # internal: new conversions per segment (for LTV base)
         for idx in reached:
             u = self.w.users[idx]
             resonance = len(target & u.pains) / len(u.pains)
@@ -388,11 +392,18 @@ class FirmEnv:
                 if cfg.use_channels else 1.0
             p_try = craft * ch * resonance       # craft now applies in the LIVE funnel (bug fix)
             p_buy = self._p_buy(u)
-            contrib = p_try * p_buy
+            if cfg.use_retention:
+                # subscriber lifecycle: only PROSPECTS convert — can't re-sell to current
+                # subscribers or churned users. Bounds the base by population and kills the
+                # flood edge (re-targeting a saturated segment hits depleted prospects).
+                prospect = 1.0 - self.sub.get(idx, 0.0) - self.churned.get(idx, 0.0)
+                contrib = prospect * p_try * p_buy
+                if commit and contrib > 0.0:
+                    self.sub[idx] = self.sub.get(idx, 0.0) + contrib   # acquire -> subscriber
+            else:
+                contrib = p_try * p_buy          # v1: memoryless one-shot purchase
             tries += p_try
             purchases += contrib
-            if cfg.use_retention:
-                by_segment[u.segment_id] = by_segment.get(u.segment_id, 0.0) + contrib
             # bounce-reason diagnostics: make quality vs price failures separately
             # observable (the C1 separability fix). Heuristic signals, not exact partition.
             if cfg.use_quality_bar or cfg.use_elasticity:
@@ -408,7 +419,6 @@ class FirmEnv:
                 "tries": round(tries, 2), "purchases": round(purchases, 2),
                 "bounced_quality": round(bounced_quality, 2),
                 "bounced_price": round(bounced_price, 2),
-                "_by_segment": by_segment,                 # internal: stripped before the agent sees it
                 "revenue": round(revenue, 2), "spend": spend}
 
     def step(self, action: dict):
@@ -430,31 +440,28 @@ class FirmEnv:
 
         # LTV: existing subscribers re-pay (recurring revenue) at the current price.
         retention = cfg.use_retention and cfg.subscription
-        if retention and self.base:
-            recurring = sum(self.base.values()) * self.price
+        if retention and self.sub:
+            recurring = sum(self.sub.values()) * self.price
             self.cash += recurring
             revenue += recurring
 
         per_campaign = []
-        new_subs = {}            # segment_id -> conversions acquired this round
         for c in action.get("campaigns", []) or []:
             spend = float(c.get("spend", 0.0))
             spend = max(0.0, min(spend, self.cash))   # can't overspend cash
+            # commit=retention -> campaigns acquire prospects into self.sub, sequentially within
+            # the round, so a second campaign sees depleted prospects (no flood exploit).
             res = self._run_campaign(c.get("target", set()), spend,
-                                     channel=c.get("channel", 0), craft=c.get("craft", 1.0))
+                                     channel=c.get("channel", 0), craft=c.get("craft", 1.0),
+                                     commit=retention)
             self.cash -= spend
             self.cash += res["revenue"]
             revenue += res["revenue"]
             spend_total += spend
-            for s, q in res.get("_by_segment", {}).items():
-                new_subs[s] = new_subs.get(s, 0.0) + q
-            # never leak internal (underscore) keys — e.g. per-segment attribution — to the agent
             per_campaign.append({k: v for k, v in res.items() if not k.startswith("_")})
 
         if retention:
-            for s, q in new_subs.items():
-                self.base[s] = self.base.get(s, 0.0) + q
-            self._apply_churn()       # responsive + segment-varied
+            self._apply_churn()       # subscribers churn (responsive + segment-varied)
 
         profit = revenue - spend_total - build_cost
         self.total_profit += profit
@@ -474,18 +481,28 @@ class FirmEnv:
         return got / tot
 
     def _apply_churn(self):
-        """Per-segment churn responsive to price (vs segment wtp) and quality (vs bar)."""
+        """Per-user churn: subscribers leave -> churned (and don't return unless
+        readopt_rate>0). Rate is responsive to price (vs segment wtp) and quality (vs the
+        segment's bar), and segment-varied; churn_eff is precomputed per segment."""
         cfg = self.cfg
-        for s in list(self.base.keys()):
-            if self.w.segments and 0 <= s < len(self.w.segments):
-                seg = self.w.segments[s]
+        segs = self.w.segments
+        churn_by_seg = {}
+        if segs:
+            for s, seg in enumerate(segs):
                 seg_wtp = math.exp(seg.wtp_mu)        # segment median willingness-to-pay
                 price_pressure = cfg.churn_price_coef * max(0.0, (self.price - seg_wtp) / seg_wtp)
                 quality_gap = cfg.churn_quality_coef * max(0.0, seg.quality_bar - self._seg_avg_ff(seg))
-                churn_eff = min(0.95, seg.churn_base + price_pressure + quality_gap)
-            else:
-                churn_eff = cfg.churn_base            # flat churn when segments are off (ablation)
-            self.base[s] *= (1.0 - churn_eff)
+                churn_by_seg[s] = min(0.95, seg.churn_base + price_pressure + quality_gap)
+        for idx, s in list(self.sub.items()):
+            if s <= 0.0:
+                continue
+            ce = churn_by_seg.get(self.w.users[idx].segment_id, cfg.churn_base)
+            leaving = s * ce
+            self.sub[idx] = s - leaving
+            self.churned[idx] = self.churned.get(idx, 0.0) + leaving
+        if cfg.readopt_rate:                          # churned slowly return to the prospect pool
+            for idx in list(self.churned.keys()):
+                self.churned[idx] *= (1.0 - cfg.readopt_rate)
 
 
 # ----------------------------- helpers -----------------------------
@@ -588,9 +605,22 @@ class OraclePolicy:
         solved_pains = [p for p, tf in zip(self.top_pains, self.target_features)
                         if tf in built_after]
         target = set(solved_pains) if solved_pains else set(self.top_pains)
+        cfg = self.w.cfg
         price = best_price_for(self.w, built_map, target)
-        reserve = self.w.cfg.build_cost if f is not None else 0.0
-        spend = max(0.0, obs["cash"] - reserve)
+        reserve = cfg.build_cost if f is not None else 0.0
+        if cfg.use_retention and getattr(env, "sub", None) is not None:
+            # LTV play: acquire-then-coast. Size spend to the REMAINING prospects in the
+            # target (omniscient) so we don't burn cash re-targeting a saturated market,
+            # and cap price near median wtp so we don't drive churn.
+            pool = set()
+            for p in target:
+                pool.update(self.w.users_by_pain.get(p, []))
+            prospects = sum(1.0 - env.sub.get(i, 0.0) - env.churned.get(i, 0.0) for i in pool)
+            desired = prospects / cfg.impressions_per_dollar
+            spend = max(0.0, min(obs["cash"] - reserve, desired))
+            price = min(price, math.exp(cfg.wtp_mu))
+        else:
+            spend = max(0.0, obs["cash"] - reserve)
         chan_pain = max(target, key=lambda p: self.w.pain_popularity[p]) if target else self.top_pains[0]
         channel = _best_channel(self.w, {chan_pain})   # best channel for the biggest targeted segment
         return {"build": f, "price": price,

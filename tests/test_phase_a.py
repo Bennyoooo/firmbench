@@ -133,12 +133,36 @@ def test_base_persists_and_churns():
     # acquire subscribers: build the solving feature, fair price, big campaign on modal channel
     env.step({"build": w.solves[p], "price": 40.0,
               "campaigns": [{"target": {p}, "spend": 3000.0, "channel": ch}]})
-    acquired = sum(env.base.values())
-    assert acquired > 0, "should acquire subscribers into the base"
-    # next round, no campaigns: recurring revenue > 0 and base decays via churn
+    acquired = sum(env.sub.values())
+    assert acquired > 0, "should acquire subscribers"
+    # next round, no campaigns: recurring revenue > 0 and the base decays via churn
     obs, profit, done, _ = env.step({"build": None, "price": 40.0, "campaigns": []})
     assert profit > 0, "recurring revenue from retained subscribers"
-    assert sum(env.base.values()) < acquired, "churn applied to the base"
+    assert sum(env.sub.values()) < acquired, "churn applied"
+
+def test_subscribers_never_exceed_population():
+    # flood exploit closed: re-targeting the same users hits depleted prospects, so the
+    # subscriber base can never exceed the real population.
+    cfg = Config.phase_a(); w = generate_world(7, cfg); env = FirmEnv(w)
+    p = _popular_pain(w, cfg); ch = w.users[w.users_by_pain[p][0]].channel_pref
+    env.step({"build": w.solves[p], "price": 30.0, "campaigns": []})
+    for _ in range(6):                                   # hammer the same pain repeatedly
+        if env.done:
+            break
+        env.step({"build": None, "price": 30.0,
+                  "campaigns": [{"target": {p}, "spend": 5000.0, "channel": ch}] * 5})
+    assert sum(env.sub.values()) <= w.pain_popularity[p] + 1e-6, "subscribers can't exceed the pool"
+
+def test_churned_users_do_not_readopt_by_default():
+    cfg = Config.phase_a(); w = generate_world(3, cfg); env = FirmEnv(w)
+    p = _popular_pain(w, cfg); ch = w.users[w.users_by_pain[p][0]].channel_pref
+    env.step({"build": w.solves[p], "price": 30.0,
+              "campaigns": [{"target": {p}, "spend": 4000.0, "channel": ch}]})
+    for _ in range(5):                                   # punishing price -> drive churn
+        if env.done:
+            break
+        env.step({"build": None, "price": 480.0, "campaigns": []})
+    assert sum(env.churned.values()) > 0 and sum(env.sub.values()) < sum(env.churned.values())
 
 def test_segment_id_not_leaked_to_agent():
     cfg = Config.phase_a(); w = generate_world(1, cfg); env = FirmEnv(w)
