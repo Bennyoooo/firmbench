@@ -60,6 +60,10 @@ class World:
     users: list                       # list[User]
     users_by_pain: dict               # pain_id -> sorted list[user_idx]
     pain_popularity: list             # pain_id -> #users having it
+    pain_names: list = None           # pain_id -> human name (cosmetic)
+    pain_keywords: dict = None        # pain_id -> list[str] for NL matching
+    feature_names: list = None        # feature_id -> human name (cosmetic)
+    feature_keywords: dict = None     # feature_id -> list[str] for NL matching
 
 
 def _weighted_sample_without_replacement(items, weights, k, rng):
@@ -78,6 +82,61 @@ def _weighted_sample_without_replacement(items, weights, k, rng):
                 weights.pop(i)
                 break
     return chosen
+
+
+# ----------------------------- name / keyword pools -----------------
+# Sampled per-seed to give the NL artifact layer meaningful labels.
+# Each entry is (name, [keywords]). Pools are larger than n_pains/n_features
+# so domain randomization produces different names per episode.
+
+_PAIN_POOL = [
+    ("slow onboarding", ["onboarding", "setup", "getting started", "first time"]),
+    ("billing errors", ["billing", "invoice", "charge", "payment error"]),
+    ("missing integrations", ["integration", "connect", "api", "third-party"]),
+    ("poor mobile experience", ["mobile", "app", "responsive", "phone"]),
+    ("data export limitations", ["export", "download", "csv", "data portability"]),
+    ("confusing permissions", ["permissions", "access", "roles", "authorization"]),
+    ("lack of reporting", ["reporting", "analytics", "dashboard", "metrics"]),
+    ("slow page loads", ["slow", "performance", "loading", "speed"]),
+    ("no offline mode", ["offline", "sync", "disconnected", "local"]),
+    ("complex pricing", ["pricing", "plan", "subscription", "cost"]),
+    ("poor search", ["search", "find", "filter", "lookup"]),
+    ("no collaboration", ["collaboration", "team", "sharing", "multi-user"]),
+    ("weak security", ["security", "encryption", "vulnerability", "breach"]),
+    ("no notifications", ["notification", "alert", "reminder", "update"]),
+    ("limited customization", ["customization", "theme", "branding", "configure"]),
+    ("difficult migration", ["migration", "import", "transfer", "switching"]),
+]
+
+_FEATURE_POOL = [
+    ("quick-start wizard", ["wizard", "onboarding", "setup", "walkthrough"]),
+    ("payment dashboard", ["payment", "billing", "invoice", "transaction"]),
+    ("API connector", ["api", "integration", "webhook", "connector"]),
+    ("mobile app", ["mobile", "app", "ios", "android"]),
+    ("data exporter", ["export", "csv", "download", "report"]),
+    ("role manager", ["role", "permission", "access", "admin"]),
+    ("analytics suite", ["analytics", "dashboard", "metrics", "charts"]),
+    ("CDN accelerator", ["cdn", "cache", "speed", "performance"]),
+    ("offline sync engine", ["offline", "sync", "local", "cache"]),
+    ("plan configurator", ["plan", "pricing", "tier", "subscription"]),
+    ("smart search", ["search", "elasticsearch", "filter", "autocomplete"]),
+    ("team workspace", ["workspace", "collaboration", "team", "shared"]),
+    ("security hardener", ["security", "encryption", "audit", "firewall"]),
+    ("notification center", ["notification", "alert", "push", "email"]),
+    ("theme engine", ["theme", "customization", "branding", "style"]),
+    ("migration toolkit", ["migration", "import", "converter", "transfer"]),
+]
+
+
+def _sample_names(rng, n, pool):
+    """Pick n unique (name, keywords) from pool; return (names_list, keywords_dict)."""
+    selected = rng.sample(pool, min(n, len(pool)))
+    # pad if pool is smaller than n (shouldn't happen with 16-entry pools and n=8)
+    while len(selected) < n:
+        selected.append((f"item-{len(selected)}", [f"keyword-{len(selected)}"]))
+    names = [s[0] for s in selected]
+    keywords = {i: list(s[1]) for i, s in enumerate(selected)}
+    return names, keywords
 
 
 def generate_world(seed: int, cfg: Config = None) -> World:
@@ -112,7 +171,14 @@ def generate_world(seed: int, cfg: Config = None) -> World:
             users_by_pain[p].append(idx)
     pain_popularity = [len(users_by_pain[p]) for p in pains]
 
-    return World(cfg, solves, users, users_by_pain, pain_popularity)
+    # cosmetic names + keywords for the NL artifact layer (Phase 3).
+    # Generated AFTER demography so the existing RNG sequence is preserved
+    # and all prior seeds produce identical sim results.
+    pain_names, pain_keywords = _sample_names(rng, cfg.n_pains, _PAIN_POOL)
+    feature_names, feature_keywords = _sample_names(rng, cfg.n_features, _FEATURE_POOL)
+
+    return World(cfg, solves, users, users_by_pain, pain_popularity,
+                 pain_names, pain_keywords, feature_names, feature_keywords)
 
 
 # ----------------------------- environment -----------------------------
