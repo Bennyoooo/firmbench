@@ -13,9 +13,47 @@ Fireworks, driven by `rft.py`. This file records the real run on `glm-5p1`.
 | Rejection sampling | Cold start: no winning trajectories to learn from (consistent with the README leaderboard — frontier models score ~0 on this env). |
 | Expert bootstrap dataset | 240 chat turns from `ScriptedExperimenter` (earns ~21k, runs locally/free) → `rft_out/sft_expert.jsonl`. Standard RFT cold-start fix: SFT on demonstrations first, then later iterations rejection-sample the model's own (now profitable) rollouts. |
 | Dataset upload (`firectl create dataset`) | ✅ `firmbench-expert-v1` — **READY**, 710 KiB. |
-| SFT job (`firectl create supervised-fine-tuning-job`) | ❌ **Blocked on billing** (see below). |
+| SFT job (`firectl create supervised-fine-tuning-job`) | ✅ **FINISHED 2026-06-21** (was blocked on billing; now unblocked). |
 
-## The one blocker: training credits
+## ✅ FINISHED (2026-06-21) — the run completed
+
+Training credits were added, so the SFT job ran to completion:
+
+- **Job** `e1ek8liv` → output model **`accounts/bennyjxh/models/firmbench-rft-glm-v1`**,
+  state **READY** (serverless LoRA serving). Base `glm-5p1`, dataset `firmbench-expert-v1`,
+  3 epochs, LoRA-16.
+- **One fix needed:** glm-5p1's SFT requires `--max-context-length` divisible by 16
+  (the unset default is not) — pass e.g. `--max-context-length 8192`.
+
+### Serving gotcha — LoRA addons are NOT serverless on this account
+The eval first returned base **0.000** → tuned **0.000**, but the tuned number was an
+artifact: calling `accounts/bennyjxh/models/firmbench-rft-glm-v1` (and the earlier
+`probe-deepseek-r1-distill-qwen-1p5b`) returns **HTTP 404 "Model not found, inaccessible,
+and/or not deployed"**. So `RFT_RUN.md`'s original premise — *glm-5p1 supports serverless
+LoRA serving* — does **not** hold here: only the **base** model serves serverlessly; the
+fine-tuned **LoRA addon** must be loaded onto a **dedicated deployment** to be callable
+(`firectl deploy <addon> --deployment <dep>`; glm-5p1 = B200/B300 dedicated, paid). The
+agent's API errors are caught → no-op action → $0 profit → disc.eff 0, which is why the
+tuned eval read 0.000.
+
+- **base glm-5p1: 0.000** is a *real* number (the base serves; it loses money on held-out
+  seeds, consistent with the earlier −409.6 raw reward → clips to 0).
+- **tuned: not evaluated** — needs a dedicated deployment (not spun up here: a glm-5p1 B200
+  deployment is costly and was not authorized).
+
+**To actually eval the tuned model** (incurs dedicated-GPU cost):
+```bash
+firectl create deployment --model accounts/fireworks/models/glm-5p1 --accelerator-type NVIDIA_B200 ...
+firectl deploy firmbench-rft-glm-v1 --deployment <deployment-id> --wait
+# then re-run rft_out/glm_eval.json's eval against the deployed addon
+```
+
+The training half of the cheap loop (data → SFT → READY adapter) is proven end-to-end; the
+serving half needs a dedicated deployment (serverless addons aren't available on this tier).
+
+The historical blocker write-up below is kept for the record.
+
+## The one blocker: training credits (HISTORICAL — resolved)
 
 ```
 ResourceExhausted: B200/B300 training requires a Tier 2 account or higher.

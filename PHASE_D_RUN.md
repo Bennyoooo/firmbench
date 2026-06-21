@@ -122,3 +122,57 @@ team-episode yields role-turns (Coord/Builder/Pricer/Marketer × rounds), each a
 `(prompt, completion)`; **every role-turn shares the team's episode disc.eff** (cooperative
 reward; GRPO normalizes within a world's group). Per-role checkpoints (MAPPO/CTDE) are 4× the
 fine-tuning cost for cooperative LLM roles — documented as the stretch path, not built.
+
+---
+
+## REAL runs executed (2026-06-21, with the provided Fireworks key)
+
+### glm-5p1 SFT on Fireworks — FINISHED ✅
+Job `e1ek8liv` (base `glm-5p1`, dataset `firmbench-expert-v1` = 240 expert turns, 3 epochs,
+LoRA-16, max_ctx 8192) → output model **`accounts/bennyjxh/models/firmbench-rft-glm-v1`**,
+state **READY**. This is the run `RFT_RUN.md` was blocked on (the Tier-1 training-credit gate
+is resolved). One validation fix was needed: glm-5p1 requires `--max-context-length`
+divisible by 16 (the unset default isn't).
+
+**Serving caveat (corrected):** the trained LoRA addon returns HTTP 404 ("not deployed") on
+serverless inference — on this account LoRA addons are NOT serverless-served (only base
+models are), so evaluating the tuned model needs a **dedicated** deployment
+(`firectl deploy <addon> --deployment <dep>`; glm-5p1 = B200, paid — not spun up unprompted).
+Base glm-5p1 evaluates to disc.eff **0.000** (real: loses money on held-out seeds); tuned is
+**not evaluated** pending a deployment. The SFT half of the loop is proven; serving isn't
+serverless here. See `RFT_RUN.md` for the deploy commands.
+
+### HUD on-policy RL — PIPELINE VALIDATED end-to-end ✅ (cheap model: Qwen3-8B)
+Forked a cheap trainable model `firmbench-team-rl-q8b` (Qwen/Qwen3-8B, $0.13/$0.40 per Mtok)
+and ran both backends through the **real** HUD gateway + `hud.train`:
+
+| Run | steps | result | checkpoints |
+|---|---|---|---|
+| team (`--multiagent`, env_multiagent) | 2 | disc.eff 0.000 → 0.000 | promoted (e3afe255, b179e74a) |
+| single-agent (env.py) | 2 | disc.eff 0.000 → 0.000 | promoted (c439d9ac, 45f2ab3f) |
+
+The loop runs end-to-end on real infra: **rollout → `forward_backward` → `optim_step`
+(promotes a new checkpoint) → re-eval**. The curve is flat at 0 because Qwen3-8B scores ~0
+on this hard Phase A market (even Claude Sonnet 4.6 gets only 0.016 team / ~0 single) — no
+reward signal → GRPO advantages are all zero → nothing to learn in 2 steps. This is a
+model-strength × env-difficulty result, not a pipeline bug; the offline selftest (mock
+imitating `OracleTeam`) proves the same loop **bends 0.44 → 1.00** when reward signal exists.
+
+**Bug fixed to make `--run` work at all:** `HudBackend._agent` now passes
+`extra_body={"return_token_ids": True}` so the openai_compatible agent records per-turn token
+ids + sampling logprobs. Without it, `forward_backward` 400s with *"no trainable turns"* — the
+real `--run` path had never been exercised before (only `--selftest`).
+
+**To get a visible real bend:** warm-start RL from a competent base (e.g. the expert-SFT'd
+glm above, or an expert-SFT'd small model) so rollouts score > 0, then RL has signal; or run
+many more steps with a stronger base. The harness is ready (`--run` works); it just needs a
+policy that gets traction on the env.
+
+### Replay / visualization
+`env_multiagent.py` now records the per-round **blackboard** (role messages), Coordinator
+budget, and campaign results into `artifacts_multiagent/<seed>/manifest.json`.
+**`replay_multiagent.html`** is a team replay viewer: step through rounds to watch the
+blackboard (role-colored Coordinator/Builder/Pricer/Marketer messages), role actions,
+campaign results, per-round profit, and a coordination-tax (team vs oracle) bar. Serve with
+`python3 -m http.server 8000` and open `replay_multiagent.html` (run `python3 env_multiagent.py`
+first to generate manifests).
