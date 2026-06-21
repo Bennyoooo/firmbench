@@ -106,17 +106,23 @@ Built-in losses: `importance_sampling` (default on-policy PG), `ppo`, `cispo`, `
 ## Layout
 
 ```
-sim.py          deterministic Phase A market: generate_world (segments/channels/LTV behind
-                Config flags), FirmEnv, oracle/naive/scripted, ablation_gate, replay_profit
-agent.py        LLM agent harness (Fireworks, structured-JSON actions)
-run.py          discovery-efficiency grader (Verifier) + head-to-head eval + toy REINFORCE
-rft.py          real RFT: rejection-sampling fine-tuning on Fireworks (+ offline selftest)
-rft_hud.py      HUD-native on-policy RL (GRPO via hud.train; gateway rollouts + offline selftest)
-scorer.py       NL artifact translator: ad copy -> craft, spec -> quality (LLM, fast_mode)
-renderer.py     renders ad copy / specs to HTML artifacts
-env.py          HUD v6 environment: MCP tools + discovery-efficiency grading
-tasks.py        HUD task definitions (3 seeds)
-Dockerfile.hud  deployable image
+sim.py            deterministic Phase A market: generate_world (segments/channels/LTV behind
+                  Config flags), FirmEnv, oracle/naive/scripted, ablation_gate, replay_profit
+agent.py          LLM agent harness (Fireworks, structured-JSON actions)
+run.py            discovery-efficiency grader (Verifier) + head-to-head eval + toy REINFORCE
+                  (--multiagent: team head-to-head + coordination tax)
+rft.py            real RFT: rejection-sampling fine-tuning on Fireworks (+ offline selftest)
+                  (--multiagent: shared-policy role-conditioned TEAM RFT)
+rft_hud.py        HUD-native on-policy RL (GRPO via hud.train; +offline selftest)
+                  (--multiagent: team-episode rollouts, shared checkpoint)
+scorer.py         NL artifact translator: ad copy -> craft, spec -> quality (LLM, fast_mode)
+renderer.py       renders ad copy / specs to HTML artifacts
+env.py            HUD v6 environment: MCP tools + discovery-efficiency grading
+tasks.py          HUD task definitions (3 seeds) + Phase D role prompts
+multiagent.py     Phase D: MultiAgentFirmEnv wrapper + Blackboard + ScriptedTeam/NaiveTeam/
+                  OracleTeam + coordination_tax + coordination_gate
+env_multiagent.py Phase D HUD env (pattern A: Coordinator-dispatch delegate tools) + tasks
+Dockerfile.hud    deployable image
 ```
 
 ## How it works
@@ -152,6 +158,37 @@ execution-based env can't already prevent.)
 mapping, which channel reaches which segment, price elasticity, and quality/retention —
 all via experiments.
 
+## Multi-agent (Phase D) — coordination tax
+
+An **additive** layer (`multiagent.py`) splits the firm into four cooperating role-agents —
+**Coordinator** (budget + directive), **Builder** (`build`), **Pricer** (`price`),
+**Marketer** (`campaigns`) — with **partial observability** over a shared **blackboard**.
+The single-agent env is untouched (opt-in). Only the Marketer sees per-campaign diagnostics,
+and it only learns what exists when the Builder posts "BUILT: feature X" — so the
+Builder→Marketer message is the load-bearing coordination link.
+
+The headline metric is the **coordination tax** = `oracle − team profit`. `ScriptedTeam`
+(reads the blackboard) and `NaiveTeam` (ignores it) share the same role policies, so the gap
+isolates the value of the messages. `OracleTeam` (the oracle action split across roles)
+reproduces the oracle exactly — proving the protocol can reach the ceiling when perfectly
+coordinated.
+
+```bash
+python3 multiagent.py                 # coordination gate: naive_team < scripted_team < oracle
+python3 run.py --multiagent           # team head-to-head + coordination tax (10 held-out seeds)
+python3 rft.py --multiagent --selftest        # shared-policy team RFT (offline curve: 0.45 -> 1.00)
+python3 rft_hud.py --multiagent --selftest    # on-policy team GRPO (offline curve: 0.44 -> 1.00)
+hud eval env_multiagent.py claude --gateway \
+    --task-ids multiagent_market_discovery_seed42 -y --max-steps 100   # real HUD team eval
+```
+
+**Coordination gate** (full market, 10 held-out seeds): `naive_team 0.016 < scripted_team
+0.047 < single-agent scripted 0.066 < oracle 1.000`; scripted tax (95.3%) < naive tax
+(98.4%) — the blackboard messages buy ~3% of the oracle. **RL uses ONE shared,
+role-conditioned checkpoint** (parameter sharing): each role = the same model + a role system
+prompt + its sliced obs; every role-turn shares the team's episode reward. See
+[`PHASE_D_RUN.md`](./PHASE_D_RUN.md).
+
 ## Eval
 
 **Phase A policy leaderboard** (10 held-out seeds; reward = discovery efficiency = profit ÷ oracle):
@@ -183,5 +220,9 @@ local code is Phase A, the hosted image is still v1.)
 
 ## Docs
 
-- **[PLAN.md](./PLAN.md)** — full design spec + progress tracker
+- **[PLAN.md](./PLAN.md)** — full design spec + progress tracker (incl. the Phase D section)
+- **[PHASE_D_RUN.md](./PHASE_D_RUN.md)** — multi-agent run log (offline gates + real HUD eval)
+- **[docs/plans/phase-d-multiagent-build-spec.md](./docs/plans/phase-d-multiagent-build-spec.md)**
+  — the Phase D build spec this layer was built from
+- `RFT_RUN.md` — single-agent real RFT run log (Fireworks)
 - `DEPRECATED-plan-*.md` — earlier design candidates (kept for reference)

@@ -21,6 +21,10 @@ parameter-sharing it implies is realized in the RL pipeline (rft.py / rft_hud.py
 
 Run `python3 env_multiagent.py` for an OFFLINE selftest that drives the tools with a
 scripted Coordinator and prints the team grade — validates the wiring with no HUD/keys.
+
+Serve over HUD (this file is self-contained: env + tools + template + task rows):
+    hud eval env_multiagent.py claude \\
+        --task-ids multiagent_market_discovery_seed42 -y --gateway --max-steps 100
 """
 
 import asyncio
@@ -282,6 +286,19 @@ if _HUD_AVAILABLE:
         logger.info("multiagent_market_discovery seed=%d reward=%.3f (%s)",
                     seed, reward, info)
         yield EvaluationResult(reward=reward, content=f"reward={reward:.3f}", info=info)
+
+    # Concrete task rows live in THIS file so `hud eval env_multiagent.py` serves the
+    # firmbench-multiagent env directly. (A task-only file like tasks.py resolves its env to
+    # the sibling env.py — the single-agent env — which has the wrong name for these tasks.)
+    from tasks import MULTIAGENT_SYSTEM_PROMPT  # noqa: E402
+
+    _t1 = multiagent_market_discovery(prompt=MULTIAGENT_SYSTEM_PROMPT, seed=42)
+    _t1.slug = "multiagent_market_discovery_seed42"
+    _t2 = multiagent_market_discovery(prompt=MULTIAGENT_SYSTEM_PROMPT, seed=123)
+    _t2.slug = "multiagent_market_discovery_seed123"
+    _t3 = multiagent_market_discovery(prompt=MULTIAGENT_SYSTEM_PROMPT, seed=7)
+    _t3.slug = "multiagent_market_discovery_seed7"
+    tasks = [_t1, _t2, _t3]   # the single list HUD's loader scans (underscore vars skipped)
 
 
 # ── offline selftest (no HUD, no keys): drive the tools with a scripted Coordinator ──

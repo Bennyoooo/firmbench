@@ -10,6 +10,11 @@
 > section below). `Config()` is exactly the v1 baseline; `Config.phase_a()` turns the full
 > market on. §§1–9 describe the v1 baseline.
 >
+> **Plus Phase D** — an additive **multi-agent** layer (Builder / Marketer / Pricer /
+> Coordinator with partial observability + a shared blackboard) and a **coordination tax**
+> metric, with shared-policy role-conditioned RL. The single-agent env stays byte-identical;
+> see the **Phase D** section below.
+>
 > **Hackathon:** HUD Frontier/RSI RL Environments Hackathon (HUD W25 × YC).
 
 ---
@@ -54,6 +59,16 @@
   **Grading redesigned** to discovery-efficiency (profit ÷ oracle); user holdout dropped.
   `ablation_gate()` validates `naive < scripted < oracle` per latent. 16 tests; see the
   Phase A section. Reward-hacking review: flood edge closed by the lifecycle model.
+- [x] **Phase D — multi-agent layer** (`multiagent.py`, `env_multiagent.py`,
+  `rft.py`/`rft_hud.py --multiagent`) — splits the firm into 4 role-agents
+  (Coordinator/Builder/Pricer/Marketer) with partial observability over a shared
+  **blackboard**, as an additive wrapper around the untouched single-agent `FirmEnv`.
+  **Coordination tax** = oracle − team profit; the load-bearing link is the Builder→Marketer
+  "what's built" message. `coordination_gate()` validates `naive_team < scripted_team <
+  oracle` and `scripted tax < naive tax`. **Shared-policy role-conditioned training** (ONE
+  checkpoint, 4 role prompts) added to both RFT pipelines; offline team selftests bend the
+  curve **0.45 → 1.00**. HUD serving via Coordinator-dispatch (`env_multiagent.py`). 21 new
+  tests; see the Phase D section.
 
 ### 🔲 Next
 
@@ -71,11 +86,14 @@
   firectl installed + authed; SFT command validated. **Blocked on $50 training
   credits** (new account is Tier 1; glm-5p1 needs B200/B300 quota). Adding credits
   → one command finishes train→serve→eval. See `RFT_RUN.md`.
-- [ ] Run `hud eval` with Claude / frontier models on held-out seeds
-- [ ] Multi-model leaderboard (Claude / GPT / Gemini / Fireworks open)
-- [ ] Phase 3 — NL artifact layer (ad copy + spec → craft translator)
-- [~] Multi-agent (Phase D — Builder/Marketer/Pricer/Coordinator + coordination tax) —
-  building in a separate branch / fresh clone
+- [x] **Multi-agent (Phase D)** — Builder/Marketer/Pricer/Coordinator + coordination tax,
+  shared-policy role-conditioned RL, HUD Coordinator-dispatch serving. Shipped on
+  `phase-d-multiagent`. See the Phase D section + `PHASE_D_RUN.md`.
+- [x] Run `hud eval` with Claude on the **multi-agent** task (Coordinator-dispatch, via the
+  HUD gateway) — see `PHASE_D_RUN.md` for the real run.
+- [ ] Multi-model leaderboard (Claude / GPT / Gemini / Fireworks open) on the team task
+- [ ] Phase 3 — NL artifact layer (ad copy + spec → craft translator) — partially in `scorer.py`
+- [ ] Real shared-policy team fine-tune (Fireworks `--multiagent --run`; blocked on credits)
 - [ ] Polish: replay viewer, failure-mode gallery, pitch deck
 
 ---
@@ -126,6 +144,58 @@ wide RL headroom.
 **Reward-hacking review:** execution-based grading rules out score-faking. The one residual
 edge — flooding overlapping campaigns to re-convert a saturated pool — is **closed** by the
 subscriber lifecycle (prospect-gating bounds the base by the real population; verified).
+
+---
+
+## Phase D — Multi-agent (coordination tax) — SHIPPED
+
+An **additive** layer (the single-agent env stays byte-identical) that splits the firm into
+four cooperating **role-agents** with partial observability and a shared blackboard. New
+modules: `multiagent.py` (env wrapper + teams + gate), `env_multiagent.py` (HUD serving),
+`tasks.py` role prompts, `rft.py`/`rft_hud.py` `--multiagent` (training). See
+`docs/plans/phase-d-multiagent-build-spec.md` for the full spec and `PHASE_D_RUN.md` for runs.
+
+**Roles & partial obs.** Coordinator (budget + directive; commits the round) · Builder
+(`build`; sees built features + quality bounce) · Pricer (`price`; sees price/bounce/churn) ·
+Marketer (`campaigns`; the ONLY role that sees per-campaign diagnostics, spends within the
+budget). Hidden market structure (segments/solves/wtp) is in **no** role's observation.
+
+**Blackboard.** Per-round structured messages `{role, text}` (cleared each round; full log
+kept for the Coordinator + replay). The **load-bearing** coordination link: the Builder must
+post "BUILT: feature X" or the Marketer can't target the pain it solves and burns budget.
+
+**Round protocol** (deterministic): Coordinator → Builder → Pricer → Marketer → commit
+(assemble the 4 slices into ONE `FirmEnv` action, Marketer spend clamped to budget, step).
+`commit()` round-trips `FirmEnv.step()` exactly (tested).
+
+**Coordination tax** = `oracle_profit − team_profit` (oracle = single-agent full-info
+`OraclePolicy`, the ceiling a perfectly-coordinated team reaches — `OracleTeam` hits it
+exactly). `ScriptedTeam` (reads the board) and `NaiveTeam` (ignores it) share role policies,
+so the gap **isolates the value of the messages**.
+
+**Coordination gate** (`coordination_gate()`, the Phase-D learnability gate; full market, 10
+held-out seeds): `naive_team 0.016 < scripted_team 0.047 < single_scripted 0.066 < oracle
+1.000`; scripted tax (95.3%) < naive tax (98.4%) — **messages buy ~3% of the oracle**. PASS.
+Run: `python3 run.py --multiagent`.
+
+**RL — ONE shared, role-conditioned checkpoint** (parameter sharing, not 4 models). A
+team-episode produces role-turns (Coord/Builder/Pricer/Marketer × rounds), each a
+`(prompt, completion)` with its **role system prompt** + role-sliced obs; **reward = team
+disc.eff, shared across all role-turns** (cooperative; GRPO normalizes within a world's
+group). `rft.py --multiagent` flattens the winning episodes' role-turns into SFT JSONL;
+`rft_hud.py --multiagent` does the grouped on-policy step. Offline team selftests bend the
+curve **0.45 → 1.00** (the mock imitates `OracleTeam`). MAPPO/per-role checkpoints are
+documented as the "if you truly need specialization" path — 4× cost, not built.
+
+**HUD serving (pattern A — Coordinator-dispatch).** `env_multiagent.py` serves the team as
+ONE HUD agent (the Coordinator) with delegate tools (`coordinator_set_budget`,
+`delegate_build`, `delegate_price`, `delegate_campaigns`, `get_team_state`, `end_round`),
+each returning only that role's slice. Grading = team disc.eff. Pattern B (native per-role
+agents) is the documented stretch. Run: `hud eval env_multiagent.py claude --gateway ...`.
+
+**Tests:** `tests/test_multiagent.py` (round-trip equivalence, budget clamp, scripted>naive,
+tax ordering, gate, diagnostics-only-to-Marketer, message slicing, no info leak) +
+`tests/test_rft_hud.py` team tests (refs ranked, team curve bends, role-turn records).
 
 ---
 
