@@ -113,7 +113,12 @@ def test_firmbench_grpo(row: EvaluationRow) -> EvaluationRow:
         return row
     build, price, target = parsed
     profit = simulate_plan(world, build, price, target)
-    score = max(0.0, min(1.0, profit / oracle))  # oracle-normalized in [0,1]
+    # Oracle-normalized profit, NOT clipped to [0,1]: clipping collapses all losing
+    # plans to 0.0 and all near-optimal plans to ~1.0, which destroys the within-group
+    # reward variance GRPO needs (a flat group is filtered out -> no training). Keeping
+    # the raw ratio (mild bounds for outliers) preserves the ordering signal; GRPO
+    # normalizes advantages within each prompt-group anyway.
+    score = max(-1.0, min(1.5, profit / oracle))
     row.evaluation_result = EvaluateResult(
         score=score, reason=f"profit ${profit:.0f} / oracle ${oracle:.0f} = {score:.3f}")
     return row
