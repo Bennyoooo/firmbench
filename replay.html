@@ -160,7 +160,7 @@ async function discoverModels() {
         name: name,
         reward: m.final_reward || 0,
         profit: m.profit || m.reported_profit || 0,
-        disc_eff: m.disc_eff || 0,
+        disc_eff: m.disc_eff || m.pct_of_max || 0,
         rounds: m.rounds || 0,
       });
     } catch(e) {}
@@ -216,8 +216,8 @@ function renderLeaderboard() {
       <div class="lb-row${m.dir === currentDir ? ' active' : ''}" onclick="loadModel('${m.dir}')">
         <div class="lb-rank" style="background:${RANK_COLORS[i] || 'var(--border)'}22;color:${RANK_COLORS[i] || 'var(--dim)'}">${i+1}</div>
         <div class="lb-name">${esc(m.name)}${avgText}</div>
-        <div class="lb-bar"><div class="lb-bar-fill" style="width:${Math.min(100, m.disc_eff*100)}%;background:${i===0?'var(--gold)':i===1?'var(--accent)':'var(--dim)'}"></div></div>
-        <div class="lb-reward" style="color:${m.reward > 0 ? 'var(--green)' : 'var(--dim)'}">${(m.disc_eff*100).toFixed(1)}%</div>
+        <div class="lb-bar"><div class="lb-bar-fill" style="width:${Math.min(100, ((m.disc_eff||m.pct_of_max||0)*100))}%;background:${i===0?'var(--gold)':i===1?'var(--accent)':'var(--dim)'}"></div></div>
+        <div class="lb-reward" style="color:${m.reward > 0 ? 'var(--green)' : 'var(--dim)'}">${(((m.disc_eff||m.pct_of_max||0)*100)).toFixed(1)}%</div>
         <div class="lb-profit">${m.profit > 0 ? '$'+m.profit.toLocaleString(undefined,{maximumFractionDigits:0}) : '—'}</div>
       </div>`;
     }).join('');
@@ -229,7 +229,7 @@ function populateModelSelect() {
   allModels.forEach(m => {
     const o = document.createElement('option');
     o.value = m.dir;
-    o.textContent = `${m.name} (${(m.disc_eff*100).toFixed(1)}%)`;
+    o.textContent = `${m.name} (${(((m.disc_eff||m.pct_of_max||0)*100)).toFixed(1)}%)`;
     sel.appendChild(o);
   });
   sel.onchange = () => loadModel(sel.value);
@@ -289,7 +289,7 @@ function renderRound() {
     <div class="status-item"><span class="model-badge">${esc(modelName)}</span></div>
     <div class="status-item"><span class="dot dot-gold"></span> Round ${currentRound+1}/${manifest.rounds}</div>
     <div class="status-item">💰 Total Profit: <span class="${totalProfit >= 0 ? 'positive' : 'negative'}">$${totalProfit.toLocaleString(undefined,{maximumFractionDigits:0})}</span></div>
-    <div class="status-item">🎯 Discovery: ${(manifest.disc_eff*100||0).toFixed(1)}%</div>
+    <div class="status-item">🎯 Discovery: ${((manifest.disc_eff||manifest.pct_of_max||0)*100).toFixed(1)}%</div>
     <div class="status-item">${(manifest.flagged||false) ? '<span class="dot dot-red"></span> Flagged' : '<span class="dot dot-green"></span> Clean'}</div>
   `;
 
