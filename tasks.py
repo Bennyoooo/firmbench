@@ -61,4 +61,10 @@ _task2.slug = "market_discovery_seed123"
 _task3 = market_discovery(prompt=SYSTEM_PROMPT, seed=7)
 _task3.slug = "market_discovery_seed7"
 
-tasks = [_task1, _task2, _task3]
+_task4 = market_discovery(prompt=SYSTEM_PROMPT, seed=99)
+_task4.slug = "market_discovery_seed99"
+
+_task5 = market_discovery(prompt=SYSTEM_PROMPT, seed=200)
+_task5.slug = "market_discovery_seed200"
+
+tasks = [_task1, _task2, _task3, _task4, _task5]
