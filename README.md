@@ -71,6 +71,20 @@ visible profit diverges from held-out profit.
 **What the agent must learn:** the pain popularity distribution (biggest needs), the
 pain→feature mapping (build the right things), and price elasticity. All via experiments.
 
+## Leaderboard (HUD, 3 seeds)
+
+| Model | Seed 42 | Seed 123 | Seed 7 | Mean Reward |
+|---|---|---|---|---|
+| **GPT-5 Mini** | 0.000 | 0.043 | 0.089 | **0.044** |
+| Claude Sonnet 4.6 | 0.000 | 0.000 | 0.007 | 0.002 |
+| Gemini 3.5 Flash | 0.000 | 0.000 | 0.000 | 0.000 |
+| GPT-4o | 0.000 | 0.000 | 0.000 | 0.000 |
+| *Scripted (reference)* | — | — | — | *~0.70* |
+| *Oracle (reference)* | — | — | — | *~0.83* |
+
+All frontier models are far below the scripted baseline — the environment is genuinely
+hard and there's a wide gap for RL training to close.
+
 ## Docs
 
 - **[PLAN.md](./PLAN.md)** — full design spec + progress tracker
