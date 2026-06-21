@@ -25,6 +25,13 @@
       "train_mean_reward": 0.1229,
       "n_rollouts": 16,
       "skill": 0.594
+    },
+    {
+      "step": 4,
+      "eval": 0.1318,
+      "train_mean_reward": 0.03,
+      "n_rollouts": 16,
+      "skill": 0.674
     }
   ],
   "references": {
@@ -33,7 +40,7 @@
     "naive": 0.018695691670347923
   },
   "config": {
-    "steps": 3,
+    "steps": 4,
     "group_size": 4,
     "lr": 1e-05,
     "loss_fn": "importance_sampling",
