@@ -1,0 +1,4 @@
+# Google Cloud / Vertex AI pipeline (agent_vertex.py, rft_gcp.py).
+# sim.py / run.py stay pure-stdlib; these are only needed for the Google backend.
+google-genai>=0.3            # unified SDK: Vertex inference + supervised tuning
+google-cloud-storage>=2.10   # stage tuning datasets on GCS
