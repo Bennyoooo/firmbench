@@ -87,6 +87,23 @@ def sigmoid(x: float) -> float:
 class User:
     pains: frozenset
     wtp: float
+    segment_id: int = -1
+    elasticity: float = None     # per-user price sensitivity (segment mean + noise)
+    channel_pref: int = 0        # channel that reaches this user best
+    quality_bar: float = 0.0     # min fulfilled-fraction to convert
+
+
+@dataclass
+class Segment:
+    """Hidden persona: a correlated pain cluster + shared economics (Phase A)."""
+    pain_affinity: list      # weights over pains -> correlated cluster
+    wtp_mu: float
+    wtp_sigma: float
+    elasticity_mu: float     # per-segment price sensitivity (per-user noise added on top)
+    channel_pref: int        # which channel reaches this segment best
+    quality_bar: float       # min fulfilled-fraction to convert
+    churn_base: float        # baseline churn rate (segment-varied)
+    weight: float            # share of population (the new "popularity" to discover)
 
 
 @dataclass
@@ -100,6 +117,7 @@ class World:
     pain_keywords: dict = None        # pain_id -> list[str] for NL matching
     feature_names: list = None        # feature_id -> human name (cosmetic)
     feature_keywords: dict = None     # feature_id -> list[str] for NL matching
+    segments: list = None             # list[Segment] (Phase A; None when use_segments off)
 
 
 def _weighted_sample_without_replacement(items, weights, k, rng):
@@ -118,6 +136,62 @@ def _weighted_sample_without_replacement(items, weights, k, rng):
                 weights.pop(i)
                 break
     return chosen
+
+
+def _weighted_pick(rng, items, weights):
+    """Pick a single item proportional to weights (deterministic given rng)."""
+    items = list(items)
+    total = sum(weights)
+    r = rng.uniform(0, total)
+    upto = 0.0
+    for it, w in zip(items, weights):
+        upto += w
+        if upto >= r:
+            return it
+    return items[-1]
+
+
+def _make_segments(rng, cfg):
+    """K hidden personas: each a skewed (correlated) pain affinity + shared economics,
+    a preferred channel, and a zipf population weight (which segments dominate)."""
+    segs = []
+    seg_ranks = list(range(cfg.n_segments))
+    rng.shuffle(seg_ranks)
+    for s in range(cfg.n_segments):
+        ranks = list(range(cfg.n_pains))
+        rng.shuffle(ranks)
+        affinity = [0.0] * cfg.n_pains
+        for r, p in enumerate(ranks):
+            affinity[p] = 1.0 / (r + 1)
+        segs.append(Segment(
+            pain_affinity=affinity,
+            wtp_mu=cfg.wtp_mu + rng.uniform(-0.3, 0.3),
+            wtp_sigma=cfg.wtp_sigma,
+            elasticity_mu=max(0.2, rng.gauss(cfg.elasticity_mu, 0.4)),
+            channel_pref=rng.randrange(cfg.n_channels),
+            quality_bar=min(0.9, max(0.0, rng.gauss(cfg.quality_bar_mu, cfg.quality_bar_sigma))),
+            churn_base=min(0.4, max(0.02, rng.gauss(cfg.churn_base, 0.04))),
+            weight=1.0 / (seg_ranks[s] + 1),
+        ))
+    return segs
+
+
+def _resample_users_from_segments(rng, cfg, segments):
+    """Hybrid population: persona backbone (pains/channel/quality_bar) + per-user
+    noise on wtp/elasticity."""
+    pains = list(range(cfg.n_pains))
+    seg_weights = [s.weight for s in segments]
+    users = []
+    for _ in range(cfg.n_users):
+        s_idx = _weighted_pick(rng, range(cfg.n_segments), seg_weights)
+        seg = segments[s_idx]
+        k = rng.choice([1, 2, 3])
+        up = _weighted_sample_without_replacement(pains, list(seg.pain_affinity), k, rng)
+        wtp = rng.lognormvariate(seg.wtp_mu, seg.wtp_sigma)
+        elasticity = max(0.1, rng.gauss(seg.elasticity_mu, cfg.elasticity_sigma))
+        users.append(User(frozenset(up), wtp, segment_id=s_idx, elasticity=elasticity,
+                          channel_pref=seg.channel_pref, quality_bar=seg.quality_bar))
+    return users
 
 
 # ----------------------------- name / keyword pools -----------------
@@ -207,6 +281,18 @@ def generate_world(seed: int, cfg: Config = None) -> World:
             users_by_pain[p].append(idx)
     pain_popularity = [len(users_by_pain[p]) for p in pains]
 
+    # Phase A (gated): resample the population from hidden personas. Runs ONLY when
+    # use_segments is on, so the flags-off RNG stream + world stay byte-identical to v1.
+    segments = None
+    if cfg.use_segments:
+        segments = _make_segments(rng, cfg)
+        users = _resample_users_from_segments(rng, cfg, segments)
+        users_by_pain = {p: [] for p in pains}
+        for idx, u in enumerate(users):
+            for p in u.pains:
+                users_by_pain[p].append(idx)
+        pain_popularity = [len(users_by_pain[p]) for p in pains]
+
     # cosmetic names + keywords for the NL artifact layer (Phase 3).
     # Generated AFTER demography so the existing RNG sequence is preserved
     # and all prior seeds produce identical sim results.
@@ -214,7 +300,8 @@ def generate_world(seed: int, cfg: Config = None) -> World:
     feature_names, feature_keywords = _sample_names(rng, cfg.n_features, _FEATURE_POOL)
 
     return World(cfg, solves, users, users_by_pain, pain_popularity,
-                 pain_names, pain_keywords, feature_names, feature_keywords)
+                 pain_names, pain_keywords, feature_names, feature_keywords,
+                 segments=segments)
 
 
 # ----------------------------- environment -----------------------------
