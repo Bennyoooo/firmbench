@@ -1,0 +1,10 @@
+{
+  "GPT-5.5": 0.219,
+  "GPT-5": 0.103,
+  "GPT-5 Mini": 0.03,
+  "Gemini 3.5 Flash": 0.003,
+  "Claude Sonnet 4.6": 0.0,
+  "Claude Opus 4.8": 0.018,
+  "GLM-5.1": 0.0,
+  "DeepSeek-V4": 0.009
+}
