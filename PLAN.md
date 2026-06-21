@@ -1,10 +1,14 @@
 # FirmBench — Design & Progress
 
-> A verifiable RL environment for **experimental market discovery**. A single agent
-> runs a firm: it must reverse-engineer a hidden demand structure in a numeric user
-> population by running experiments, then build the right product, market it to the
-> right people, and price it right. **Reward = profit**, graded on secret held-out
-> users. Deployed on **HUD**.
+> A verifiable RL environment for **experimental market discovery**. A single agent runs
+> a firm: it must reverse-engineer a hidden, persona-structured demand population by
+> running experiments, then build the right features, target the right segments on the
+> right channel, and price for retention. **Reward = discovery efficiency** (profit ÷
+> oracle, clipped to [0,1]). Deployed on **HUD**.
+>
+> **Now Phase A** — a hybrid persona + subscription/LTV market (see the **Phase A**
+> section below). `Config()` is exactly the v1 baseline; `Config.phase_a()` turns the full
+> market on. §§1–9 describe the v1 baseline.
 >
 > **Hackathon:** HUD Frontier/RSI RL Environments Hackathon (HUD W25 × YC).
 
@@ -44,6 +48,12 @@
   - Environment: `firmbench` v1
   - Dashboard: https://hud.ai/environments/169eeeae-d713-4cc8-b700-74c5c4a8719a
   - Image: `156041433621.dkr.ecr.us-west-2.amazonaws.com/hud/envs/firmbench:v1`
+- [x] **Phase A — persona + LTV market** (`sim.py`/`env.py`/`run.py`/`tasks.py`) — hidden
+  segments, channels, per-user elasticity, quality bar, and a subscriber-lifecycle
+  subscription/churn model, all behind `Config` flags (v1 byte-identical when off).
+  **Grading redesigned** to discovery-efficiency (profit ÷ oracle); user holdout dropped.
+  `ablation_gate()` validates `naive < scripted < oracle` per latent. 16 tests; see the
+  Phase A section. Reward-hacking review: flood edge closed by the lifecycle model.
 
 ### 🔲 Next
 
@@ -64,8 +74,58 @@
 - [ ] Run `hud eval` with Claude / frontier models on held-out seeds
 - [ ] Multi-model leaderboard (Claude / GPT / Gemini / Fireworks open)
 - [ ] Phase 3 — NL artifact layer (ad copy + spec → craft translator)
-- [ ] Multi-agent stretch (Builder/Marketer/Pricer/Coordinator + coordination tax)
+- [~] Multi-agent (Phase D — Builder/Marketer/Pricer/Coordinator + coordination tax) —
+  building in a separate branch / fresh clone
 - [ ] Polish: replay viewer, failure-mode gallery, pitch deck
+
+---
+
+## Phase A — Persona + LTV market (CURRENT)
+
+Upgraded from the v1 single-attribute population to a **hybrid persona market with
+subscription/LTV dynamics**, all behind `Config` flags (`Config()` = exactly v1;
+`Config.phase_a()` = full market). §§1–9 below describe the v1 baseline; this is what's live.
+
+**World — new hidden latents (each behind a flag):**
+- **Segments** (`use_segments`): ~5,000 users from K hidden personas — correlated pain
+  cluster, wtp, elasticity, preferred channel, quality bar, churn rate — plus per-user noise.
+- **Channels** (`use_channels`): segments differ in which channel reaches them.
+- **Per-user elasticity** (`use_elasticity`): price sensitivity varies by user.
+- **Quality bar** (`use_quality_bar`): soft gate — under-quality features don't convert.
+- **Subscription / churn** (`use_retention`): per-user lifecycle **prospect → subscriber →
+  churned**. Only prospects convert (no re-selling to current subscribers); churned users
+  don't return unless `readopt_rate>0`; subscribers pay **recurring** revenue and **churn**
+  when price is too high or quality too low (responsive + segment-varied). Optimize LTV.
+
+**Firm state:** + per-user subscriber base (latent); `implementation_quality` now varies
+(from NL specs scored by the translator in `scorer.py`).
+
+**Tools:** `probe_market` / `run_campaign` take `channel` + optional `ad_copy`; `build_feature`
+takes optional `spec`. Diagnostics add **bounce reasons** (`bounced_quality` vs `bounced_price`)
+so quality/price failures are separately observable. Horizon scales (~16) with channels.
+
+**Funnel:** `p_try = craft × channel_fit × resonance`; `p_buy = sigmoid(α·ff + β_u·price_term −
+γ) × quality_gate`; acquisition gated by per-user **prospect mass**; recurring + churn each round.
+
+**Grading (changed):** reward = **discovery efficiency = profit ÷ oracle**, clipped to [0,1].
+The secret-held-out + tripwire scheme was **dropped** — in an execution-based env the agent
+can't fake profit (nothing to verify) and the holdout flagged honest agents under Phase A.
+Generalization is measured by **held-out eval seeds** (domain randomization). `env.py` and
+`run.py` both grade on disc.eff; `beat_oracle` flags any policy exceeding the reference.
+
+**Design discipline:** every latent is a **matched quad** (latent ↔ action ↔ observation ↔
+reward), validated by `ablation_gate()` — `naive < scripted < oracle` holds per latent and for
+the full stack. (`+channels`-alone WARNs ~4%: a channel-aware scripted edges the greedy
+non-LTV oracle — a mechanism artifact; under `full` the LTV-aware oracle dominates.)
+
+**Eval (10 held-out seeds, full model):** naive **0.021** · scripted **0.066** · oracle
+**1.000**. The LTV game (acquire-then-coast, price for retention, don't burn cash on a
+saturated finite market) is deep skill — scripted reaches only ~7% of the ceiling, leaving
+wide RL headroom.
+
+**Reward-hacking review:** execution-based grading rules out score-faking. The one residual
+edge — flooding overlapping campaigns to re-convert a saturated pool — is **closed** by the
+subscriber lifecycle (prospect-gating bounds the base by the real population; verified).
 
 ---
 
@@ -151,7 +211,10 @@ impressions, tries, purchases, revenue. This makes experiments informative — e
 
 ---
 
-## 7. Verifier (secret held-out users + cheat tripwire)
+## 7. Verifier (secret held-out users + cheat tripwire) — *v1 baseline, SUPERSEDED*
+
+> **Superseded in Phase A** by discovery-efficiency grading (reward = profit ÷ oracle; no
+> user holdout — see the Phase A section). Kept below for history.
 
 - **20% of users are held out** — the agent never gets campaign feedback from them.
 - On episode end, the verifier **replays every action** on held-out users and computes

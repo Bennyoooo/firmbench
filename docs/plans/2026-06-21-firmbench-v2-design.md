@@ -1,8 +1,8 @@
 # FirmBench v2 — Integrated Expansion Design
 
-> **Status:** ⚠️ **Did NOT pass adversarial review** — see
-> `firmbench-v2-design-review-1.md`. Under revision; do not build from this yet.
-> **Date:** 2026-06-21
+> **Status:** ✅ **Phase A SHIPPED** (merged to main, 2026-06-21). The original review
+> (`firmbench-v2-design-review-1.md`) flagged real issues — all addressed during
+> implementation; see **"What actually shipped"** below. **Date:** 2026-06-21
 >
 > **Corrections (this doc was drafted against a STALE read of the code):**
 > - The NL artifact + **LLM judge-as-translator already exists** (`scorer.py`,
@@ -19,6 +19,31 @@
 >   non-deterministic. Also a live bug: **craft is applied in holdout grading but
 >   not in the live funnel** (`env.py:104` vs `sim.py:252`) → honest NL agents
 >   self-flag the cheat tripwire.
+
+## What actually shipped (vs the original design above)
+
+- **Grading: holdout → discovery efficiency.** The secret-held-out + tripwire scheme
+  (designed in §7 / Phase A below) was **dropped**. In an execution-based env the agent
+  can't fake profit (nothing to verify), and the holdout flagged honest agents — it's
+  incompatible with the first-N-by-index reach + a contiguous holdout block. Reward is now
+  **profit ÷ oracle**, clipped [0,1]; generalization comes from **held-out eval seeds**.
+- **Retention: aggregate base → per-user subscriber lifecycle.** Instead of an aggregate
+  `base[segment]` float, each user is **prospect / subscriber / churned**; only prospects
+  convert, and churned users don't re-adopt (`readopt_rate` knob). This **closes the
+  campaign-flood reward-hacking edge** (base bounded by the real population) — a refinement
+  beyond the original design, prompted by the reward-hacking review.
+- **Oracle made LTV-aware** (acquire-then-coast + retention pricing) so it stays a valid
+  ceiling under subscription dynamics; the C3 guard (`beat_oracle` / gate WARN) is retained.
+- **Channel = soft conversion multiplier** (mechanism (b)), not audience-gating — preserves
+  v1 reach + determinism. Mild `+channels`-alone gate WARN noted (channel-aware scripted
+  edges the greedy non-LTV oracle; under `full` the LTV oracle dominates).
+- **Original review issues:** C1 (identifiability) → bounce diagnostics + ablation gate;
+  C2 (budget) → scaling horizon/cash dials; C4/C5 (LLM-in-reward) → **deferred** (Phase A
+  keeps the LLM out of the reward path; reward is pure execution-based disc.eff). Craft
+  live/holdout bug fixed.
+- **Resolved Q&A decisions:** customer = hybrid; churn = responsive + segment-varied;
+  Phase C judge = translator + evaluator **but the reward-folded evaluator is deferred**.
+  Multi-agent (Phase D) in progress.
 
 ## Goal
 
