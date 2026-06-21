@@ -26,6 +26,8 @@ Launch multi-turn RFT (GRPO) — provide the MCP-Gym server so Fireworks drives 
    see PHASE_D_RUN.md for the firectl reinforcement-fine-tuning-job recipe.)
 """
 
+import os
+
 from eval_protocol.models import EvaluationRow, EvaluateResult, InputMetadata, Message
 from eval_protocol.pytest import evaluation_test
 from eval_protocol.pytest.default_mcp_gym_rollout_processor import MCPGymRolloutProcessor
@@ -34,7 +36,10 @@ from sim import Config, generate_world, FirmEnv
 from agent import system_prompt, format_obs, extract_json, validate_action
 
 cfg = Config()
-SEEDS = list(range(1, 9))  # 8 training worlds (disjoint from the 100+ held-out eval seeds)
+SEEDS = list(range(1, 1 + int(os.environ.get("EP_SEEDS", "8"))))  # training worlds (held-out evals use 100+)
+# Local rollout model (litellm). Override with EP_MODEL for a local smoke test; the Fireworks
+# RFT base model is set separately via --training-config-base-model and is unaffected by this.
+_LOCAL_MODEL = os.environ.get("EP_MODEL", "fireworks_ai/accounts/fireworks/models/qwen3-8b")
 
 # Multi-turn system prompt: the model drives the firm via the firm_round MCP tool.
 _MCP_SYSTEM_PROMPT = system_prompt(cfg) + """
@@ -59,9 +64,11 @@ def _episode_dataset():
                 row_id=f"firmbench-seed-{s}",
                 dataset_info={
                     "environment_context": {"game": "FirmBench", "seed": s},
+                    # formatted as template.format(observation=..., **environment_context),
+                    # so only {observation}/{game}/{seed} are valid keys (NOT {round}).
                     "user_prompt_template": (
-                        "Round {round}. Call firm_round(action_json) with your action. "
-                        "Latest observation:\n{observation}"
+                        "Latest observation:\n{observation}\n"
+                        "Call firm_round(action_json) with your next action."
                     ),
                 },
             ),
@@ -72,7 +79,9 @@ def _episode_dataset():
 @evaluation_test(
     input_rows=[_episode_dataset()],
     completion_params=[{
-        "model": "accounts/fireworks/models/qwen3-8b",
+        # local rollout routes via litellm -> needs the provider prefix; the Fireworks RFT
+        # base model is set separately via --training-config-base-model.
+        "model": _LOCAL_MODEL,
         "temperature": 0.7,
         "max_tokens": 2048,
     }],
