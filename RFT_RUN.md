@@ -15,7 +15,34 @@ Fireworks, driven by `rft.py`. This file records the real run on `glm-5p1`.
 | Dataset upload (`firectl create dataset`) | ✅ `firmbench-expert-v1` — **READY**, 710 KiB. |
 | SFT job (`firectl create supervised-fine-tuning-job`) | ✅ **FINISHED 2026-06-21** (was blocked on billing; now unblocked). |
 
-## ✅ FINISHED (2026-06-21) — the run completed
+## ⚠️ SFT vs RL — read this first
+
+This file documents **rejection-sampling SFT** (expert-bootstrap supervised fine-tuning).
+When asked to "finish a training on glm" I first completed that *supervised* job (below) —
+but the actual ask was **RL**. The correct RL run is a **GRPO reinforcement fine-tuning**
+job, launched 2026-06-21 and mirroring the qwen3-8b GRPO setup:
+
+- **Job `veu077gh`** → output **`accounts/bennyjxh/models/firmbench-glm-grpo-v1`**,
+  **Loss: GRPO**, base glm-5p1, 3 epochs, LoRA-8, group size 8 (response candidates),
+  evaluator `test-firmbench-grpo` + dataset `…-20260621070244` (copied from the qwen3-8b
+  GRPO job `kby4ofja`). Launch (native firectl, avoids the eval-protocol 0.3.31 CLI bug
+  where `--loss-config-method` rejects every value):
+  ```bash
+  firectl create reinforcement-fine-tuning-job \
+    --base-model accounts/fireworks/models/glm-5p1 \
+    --dataset test-firmbench-grpo-test-firmbench-grpo-dataset-20260621070244 \
+    --evaluator accounts/bennyjxh/evaluators/test-firmbench-grpo-test-firmbench-grpo \
+    --output-model firmbench-glm-grpo-v1 --rl-loss-method grpo \
+    --epochs 3 --lora-rank 8 --max-context-length 8192
+  ```
+  Monitor: `firectl get reinforcement-fine-tuning-job veu077gh`. The GRPO reward curve (in
+  the job status / Fireworks dashboard) is the RL signal — no serving needed to see it.
+- The evaluator reward is currently the **single-turn round-0 profit** (`ep_firmbench.py`,
+  the cost-probe); scaling to the full multi-turn episode reward is the next step.
+
+The supervised run below still completed and is kept for the record.
+
+## ✅ FINISHED (2026-06-21) — the SFT run completed
 
 Training credits were added, so the SFT job ran to completion:
 
