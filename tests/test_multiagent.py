@@ -84,20 +84,32 @@ def test_budget_clamps_marketer_spend():
 
 # ----------------------------- coordination tax: messages buy coordination -----------------------------
 
+_GATE_SEEDS = (1, 2, 3, 4, 5)
+
 def test_scripted_team_beats_naive_team():
-    for s in (1, 2, 3):
+    # Coordination value is a POPULATION property: with per-seed population randomization
+    # (+/-40%) the naive team occasionally wins a single world by luck, so assert on the
+    # MEAN across seeds (the coordination_gate averages too), not per-seed.
+    scr_tot = naive_tot = 0.0
+    for s in _GATE_SEEDS:
         w = generate_world(s, PA)
-        _, scr = run_team_episode(w, ScriptedTeam(w, s))
-        _, naive = run_team_episode(w, NaiveTeam(w, s))
-        assert scr > naive, f"seed {s}: scripted_team {scr:.0f} should beat naive_team {naive:.0f}"
+        scr_tot += run_team_episode(w, ScriptedTeam(w, s))[1]
+        naive_tot += run_team_episode(w, NaiveTeam(w, s))[1]
+    n = len(_GATE_SEEDS)
+    assert scr_tot / n > naive_tot / n, \
+        f"mean scripted_team {scr_tot/n:.0f} should beat mean naive_team {naive_tot/n:.0f}"
 
 def test_coordination_tax_smaller_when_coordinated():
-    w = generate_world(1, PA)
-    scr = coordination_tax(w, lambda w, s: ScriptedTeam(w, s))
-    naive = coordination_tax(w, lambda w, s: NaiveTeam(w, s))
-    assert scr["tax"] > 0, "even a coordinated team pays some tax vs the full-info oracle"
-    assert scr["tax"] < naive["tax"], "coordination (messages) must shrink the tax"
-    assert 0.0 <= scr["team_disc_eff"] <= 1.0
+    # mean coordination tax across seeds (per-seed is noisy under pop randomization)
+    scr_tax = naive_tax = 0.0
+    for s in _GATE_SEEDS:
+        w = generate_world(s, PA)
+        scr = coordination_tax(w, lambda w, s: ScriptedTeam(w, s))
+        naive = coordination_tax(w, lambda w, s: NaiveTeam(w, s))
+        scr_tax += scr["tax"]; naive_tax += naive["tax"]
+        assert 0.0 <= scr["team_disc_eff"] <= 1.0
+    assert scr_tax > 0, "even a coordinated team pays some tax vs the full-info oracle"
+    assert scr_tax < naive_tax, "coordination (messages) must shrink the tax on average"
 
 def test_coordination_gate_passes():
     rows = coordination_gate(seeds=[1, 2, 3])

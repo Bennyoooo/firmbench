@@ -38,7 +38,7 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
 
-from sim import Config, generate_world, OraclePolicy, run_episode
+from sim import Config, generate_world, OraclePolicy, run_episode, theoretical_max
 from multiagent import MultiAgentFirmEnv, ROLES
 from scorer import ScoreConfig, score_ad_copy, score_feature_spec
 
@@ -58,19 +58,23 @@ _ROUND_LOG = []          # committed actions per round (for the manifest / repla
 _ARTIFACTS_DIR = None
 
 
-# ── grading: team discovery efficiency = team_profit / oracle ───────────────────────
+# ── grading: reward = team_profit / theoretical_max (matches env.py's normalizer) ────────
+# theoretical_max(world) is the per-world optimistic profit CEILING -> honest [0,1], no
+# clipping/"beat oracle". The single-agent OraclePolicy is kept as a reported achievable-expert
+# baseline (pct_of_oracle) and as the coordination-tax reference.
 def _grade_episode():
     profit = _MENV.total_profit
-    oracle_profit = run_episode(_WORLD, OraclePolicy(_WORLD))
-    disc_eff = profit / oracle_profit if oracle_profit > 0 else 0.0
-    reward = max(0.0, min(1.0, disc_eff))
-    coordination_tax = oracle_profit - profit
+    tmax = theoretical_max(_WORLD)                              # optimistic per-world ceiling
+    oracle_profit = run_episode(_WORLD, OraclePolicy(_WORLD))   # achievable-expert baseline
+    reward = max(0.0, min(1.0, profit / tmax)) if tmax > 0 else 0.0
+    pct_of_oracle = profit / oracle_profit if oracle_profit > 0 else 0.0
     info = {
         "team_profit": round(profit, 2),
+        "theoretical_max": round(tmax, 2),
         "oracle_profit": round(oracle_profit, 2),
-        "disc_eff": round(disc_eff, 3),
-        "coordination_tax": round(coordination_tax, 2),
-        "beat_oracle": disc_eff > 1.0,
+        "disc_eff": round(reward, 3),                           # = profit / theoretical_max
+        "pct_of_oracle": round(pct_of_oracle, 3),
+        "coordination_tax": round(oracle_profit - profit, 2),   # gap vs the achievable expert
         "rounds": len(_ROUND_LOG),
     }
     if _ARTIFACTS_DIR:

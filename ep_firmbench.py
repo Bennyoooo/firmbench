@@ -91,11 +91,11 @@ def _episode_dataset():
     max_concurrent_rollouts=4,
 )
 def firmbench_episode(row: EvaluationRow) -> EvaluationRow:
-    """Reward = full-episode disc.eff. The MCP-Gym env returns per-round profit/oracle; their
-    sum (row.get_total_reward()) is disc.eff. Clip to [0,1] for a clean GRPO reward."""
-    disc_eff = max(0.0, min(1.0, row.get_total_reward()))
+    """Reward = full-episode profit / theoretical_max. The MCP-Gym env returns per-round
+    profit/theoretical_max; their sum (row.get_total_reward()) is the honest [0,1] score."""
+    score = max(0.0, min(1.0, row.get_total_reward()))
     row.evaluation_result = EvaluateResult(
-        score=disc_eff, reason=f"episode disc.eff = {disc_eff:.3f} (profit/oracle)")
+        score=score, reason=f"episode score = {score:.3f} (profit / theoretical_max)")
     return row
 
 

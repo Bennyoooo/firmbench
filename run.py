@@ -252,25 +252,29 @@ def train_reinforce(train_seeds, cfg=None, iters=400, alpha=0.3, seed=0):
 def evaluate_multiagent(test_seeds, cfg=None):
     """Phase-D head-to-head on held-out seeds: single-agent ScriptedExperimenter vs the
     coordinated ScriptedTeam vs the isolated NaiveTeam vs the full-info oracle ceiling.
-    Reports disc.eff (profit/oracle) and the coordination tax (oracle - team_profit).
+    Reports disc.eff (profit / theoretical_max, matching env.py's normalizer) and the
+    coordination tax (oracle - team_profit, the gap vs the achievable expert).
 
-    The oracle is the SINGLE-agent OraclePolicy (no partial-obs barrier): a perfectly
-    coordinated team approaches it; the gap is the tax. The single-agent scripted bounds
-    the achievable-without-the-barrier side; the naive team bounds the no-comms side."""
+    theoretical_max is the per-world optimistic CEILING; the oracle is the SINGLE-agent
+    achievable expert (no partial-obs barrier). A perfectly coordinated team approaches the
+    oracle; the gap is the tax. The naive team bounds the no-comms side."""
     from multiagent import ScriptedTeam, NaiveTeam, run_team_episode
     cfg = cfg or Config.phase_a()
 
-    agg = {"oracle": [], "single": [], "scripted_team": [], "naive_team": []}
-    eff = {"single": [], "scripted_team": [], "naive_team": []}
+    agg = {"theoretical_max": [], "oracle": [], "single": [], "scripted_team": [], "naive_team": []}
+    eff = {"oracle": [], "single": [], "scripted_team": [], "naive_team": []}
     for s in test_seeds:
         w = generate_world(s, cfg)
+        tmax = theoretical_max(w)
         oracle = run_episode(w, OraclePolicy(w))
         single = run_episode(w, ScriptedExperimenter(w, s))
         _, scr = run_team_episode(w, ScriptedTeam(w, s))
         _, naive = run_team_episode(w, NaiveTeam(w, s))
-        agg["oracle"].append(oracle); agg["single"].append(single)
+        agg["theoretical_max"].append(tmax); agg["oracle"].append(oracle)
+        agg["single"].append(single)
         agg["scripted_team"].append(scr); agg["naive_team"].append(naive)
-        denom = oracle if oracle > 0 else 1.0
+        denom = tmax if tmax > 0 else 1.0          # reward = profit / theoretical_max
+        eff["oracle"].append(oracle / denom)
         eff["single"].append(single / denom)
         eff["scripted_team"].append(scr / denom)
         eff["naive_team"].append(naive / denom)
@@ -282,10 +286,11 @@ def evaluate_multiagent(test_seeds, cfg=None):
     print("=" * 74)
     print(f"FirmBench — Phase D multi-agent head-to-head ({n} held-out seeds, full market)")
     print("=" * 74)
-    hdr = f"{'policy':<26}{'mean profit':>14}{'disc.eff':>10}{'coord tax':>12}"
+    hdr = f"{'policy':<26}{'mean profit':>14}{'disc.eff':>10}{'gap to max':>12}"
     print(hdr); print("-" * len(hdr))
     rows = [
-        ("oracle (full-info)", mean["oracle"], 1.000, 0.0),
+        ("theoretical_max (ceiling)", mean["theoretical_max"], 1.000, 0.0),
+        ("oracle (achievable expert)", mean["oracle"], meaneff["oracle"], 1 - meaneff["oracle"]),
         ("single-agent scripted", mean["single"], meaneff["single"], 1 - meaneff["single"]),
         ("scripted-team (comms)", mean["scripted_team"], meaneff["scripted_team"], 1 - meaneff["scripted_team"]),
         ("naive-team (no comms)", mean["naive_team"], meaneff["naive_team"], 1 - meaneff["naive_team"]),
@@ -294,7 +299,7 @@ def evaluate_multiagent(test_seeds, cfg=None):
         print(f"{name:<26}{prof:>14.0f}{de:>10.3f}{tax:>11.1%}")
     print("-" * len(hdr))
     coord_gain = meaneff["scripted_team"] - meaneff["naive_team"]
-    print(f"VERDICT: coordination (blackboard messages) buys {coord_gain:+.1%} of the oracle "
+    print(f"VERDICT: coordination (blackboard messages) buys {coord_gain:+.1%} of the ceiling "
           f"(scripted-team {meaneff['scripted_team']:.3f} vs naive-team {meaneff['naive_team']:.3f}).")
     gate = ("PASS" if mean["naive_team"] < mean["scripted_team"] <= mean["oracle"] else "FAIL")
     print(f"         coordination gate: naive < scripted_team <= oracle -> {gate}")

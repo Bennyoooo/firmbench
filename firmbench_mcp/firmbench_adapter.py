@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from eval_protocol.mcp.adapter import EnvironmentAdapter
 
-from sim import Config, generate_world, FirmEnv, OraclePolicy, run_episode
+from sim import Config, generate_world, FirmEnv, OraclePolicy, run_episode, theoretical_max
 from agent import extract_json, validate_action
 
 # v1 market (matches the existing ep_firmbench dataset/evaluator + the running GRPO job).
@@ -34,9 +34,10 @@ class FirmBenchAdapter(EnvironmentAdapter):
         seed = int(config.get("seed", 0))
         world = generate_world(seed, CFG)
         env = FirmEnv(world)
-        # the oracle is the per-world ceiling; per-round reward = round_profit / oracle so the
-        # episode total equals disc.eff = total_profit / oracle.
-        env._oracle = run_episode(world, OraclePolicy(world)) or 1.0
+        # theoretical_max(world) is the per-world optimistic CEILING (matches env.py's reward
+        # normalizer). Per-round reward = round_profit / theoretical_max, so the episode total
+        # equals profit / theoretical_max -> honest [0,1].
+        env._tmax = theoretical_max(world) or 1.0
         env._seed = seed
         return env
 
@@ -55,8 +56,8 @@ class FirmBenchAdapter(EnvironmentAdapter):
 
     def step_environment(self, env: FirmEnv, action: Any) -> Tuple[Any, float, bool, bool, Dict[str, Any]]:
         obs, profit, done, info = env.step(action)
-        oracle = getattr(env, "_oracle", 1.0) or 1.0
-        reward = profit / oracle                 # dense; sum over the episode == disc.eff
+        tmax = getattr(env, "_tmax", 1.0) or 1.0
+        reward = profit / tmax                   # dense; sum over the episode == profit/theoretical_max
         return obs, reward, bool(done), False, info
 
     def close_environment(self, env: FirmEnv) -> None:
