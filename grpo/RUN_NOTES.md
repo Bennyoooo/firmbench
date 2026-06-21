@@ -1,4 +1,4 @@
-# FirmBench GRPO run — live notes
+# SaaSBench GRPO run — live notes
 
 ## Account / auth
 - Key: bennyjxh account (fw_74b...gM5V), $500 credits (unlocks B200 training).

@@ -1,7 +1,8 @@
-# FirmBench
+# SaaSBench
 
-A verifiable RL environment for **autonomous business agents** — built for the
-**HUD Frontier/RSI RL Environments Hackathon** (HUD W25 x YC).
+A verifiable RL environment where an agent **runs a SaaS against a simulated
+population of real-world users** — built for the **HUD Frontier/RSI RL
+Environments Hackathon** (HUD W25 x YC).
 
 One agent runs a simulated firm: it must reverse-engineer a hidden, persona-structured
 demand population by running experiments, then build the right features, target the right

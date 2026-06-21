@@ -1,4 +1,4 @@
-# FirmBench — Design & Progress
+# SaaSBench — Design & Progress
 
 > A verifiable RL environment for **experimental market discovery**. A single agent runs
 > a firm: it must reverse-engineer a hidden, persona-structured demand population by
@@ -304,7 +304,7 @@ RL-native: success requires **explore→exploit of hidden latent structure**.
    it to parameters that drive a deterministic numeric market.
 5. Simplified from 4-agent C-suite → **single agent** (multi-agent = stretch).
 6. Merged patterns from three codebases:
-   - **FirmBench** sim.py → the market-discovery environment
+   - **SaaSBench** sim.py → the market-discovery environment
    - **rl-experiments/ml-research-rl** → verifier (secret held-out, tripwires, REINFORCE)
    - **autonomous-businesses-template** → HUD v6 integration (MCP, @env.template)
 7. **Deployed to HUD platform** as `firmbench` v1.
@@ -349,7 +349,7 @@ RL-native: success requires **explore→exploit of hidden latent structure**.
 ---
 
 ## 16. One-line pitch
-> FirmBench drops an agent into a market whose demand structure is hidden in a
+> SaaSBench drops an agent into a market whose demand structure is hidden in a
 > 10,000-user simulation. To make money it must *experiment* to discover what people
 > need, *build* it, *market* it to the right people, and *price* it right — and we
 > measure profit and how close it gets to the oracle.

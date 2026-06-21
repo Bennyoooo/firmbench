@@ -3,41 +3,41 @@
     {
       "step": 0,
       "model": "base",
-      "eval": 0.0168
+      "eval": 0.0191
     },
     {
       "step": 1,
-      "eval": 0.0038,
-      "train_mean_reward": 0.014,
+      "eval": 0.0114,
+      "train_mean_reward": 0.0179,
       "n_rollouts": 16,
-      "skill": 0.31
+      "skill": 0.311
     },
     {
       "step": 2,
-      "eval": 0.0007,
-      "train_mean_reward": 0.0717,
+      "eval": 0.0063,
+      "train_mean_reward": 0.0287,
       "n_rollouts": 16,
-      "skill": 0.461
+      "skill": 0.446
     },
     {
       "step": 3,
-      "eval": 0.0785,
-      "train_mean_reward": 0.1229,
+      "eval": 0.0024,
+      "train_mean_reward": 0.0406,
       "n_rollouts": 16,
-      "skill": 0.594
+      "skill": 0.558
     },
     {
       "step": 4,
-      "eval": 0.1318,
-      "train_mean_reward": 0.03,
+      "eval": 0.0642,
+      "train_mean_reward": 0.0463,
       "n_rollouts": 16,
-      "skill": 0.674
+      "skill": 0.649
     }
   ],
   "references": {
     "oracle": 1.0,
-    "scripted": 0.06572196928242868,
-    "naive": 0.018695691670347923
+    "scripted": 0.061113772399746705,
+    "naive": 0.0202734458019859
   },
   "config": {
     "steps": 4,
