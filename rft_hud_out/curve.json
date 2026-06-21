@@ -3,44 +3,37 @@
     {
       "step": 0,
       "model": "base",
-      "eval": 0.0685
+      "eval": 0.0168
     },
     {
       "step": 1,
-      "eval": 0.0506,
-      "train_mean_reward": 0.0413,
+      "eval": 0.0038,
+      "train_mean_reward": 0.014,
       "n_rollouts": 16,
-      "skill": 0.322
+      "skill": 0.31
     },
     {
       "step": 2,
-      "eval": 0.3223,
-      "train_mean_reward": 0.0315,
+      "eval": 0.0007,
+      "train_mean_reward": 0.0717,
       "n_rollouts": 16,
-      "skill": 0.456
+      "skill": 0.461
     },
     {
       "step": 3,
-      "eval": 0.2558,
-      "train_mean_reward": 0.0654,
+      "eval": 0.0785,
+      "train_mean_reward": 0.1229,
       "n_rollouts": 16,
-      "skill": 0.574
-    },
-    {
-      "step": 4,
-      "eval": 0.6988,
-      "train_mean_reward": 0.282,
-      "n_rollouts": 16,
-      "skill": 0.716
+      "skill": 0.594
     }
   ],
   "references": {
     "oracle": 1.0,
-    "scripted": 0.9636791466190904,
-    "naive": 0.0740241973819585
+    "scripted": 0.06572196928242868,
+    "naive": 0.018695691670347923
   },
   "config": {
-    "steps": 4,
+    "steps": 3,
     "group_size": 4,
     "lr": 1e-05,
     "loss_fn": "importance_sampling",

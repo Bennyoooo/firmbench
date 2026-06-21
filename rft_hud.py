@@ -142,15 +142,24 @@ class HudBackend:
     a new checkpoint so the next rollout is on-policy.
     """
 
-    def __init__(self, model, env_path="env.py"):
+    def __init__(self, model, env_path="env.py", max_steps=80):
         from hud.eval import LocalRuntime          # local: serve env.py in a child proc
         from hud.agents import create_agent
         from hud.train import TrainingClient
 
         self.model = model
+        self.max_steps = max_steps                 # ~16 rounds x a few tool calls each
         self.runtime = LocalRuntime(env_path)
         self._create_agent = create_agent
         self.client = TrainingClient(model)
+
+    def _agent(self, temperature):
+        # openai_compatible (Tinker) config ignores a top-level `temperature` — it
+        # lives in completion_kwargs — and defaults max_steps=10 (too few for a full
+        # episode). Set both explicitly. Unknown kwargs are ignored by other agent types.
+        return self._create_agent(
+            self.model, max_steps=self.max_steps,
+            completion_kwargs={"temperature": temperature})
 
     def _tasks(self, seeds):
         from env import market_discovery
@@ -159,14 +168,14 @@ class HudBackend:
 
     async def rollout_group(self, seed, n, temperature):
         from hud.eval import rollout
-        agent = self._create_agent(self.model, temperature=temperature)
+        agent = self._agent(temperature)
         tasks = self._tasks([seed] * n)            # n rollouts of the same world
         return list(await asyncio.gather(
             *(rollout(t, agent, runtime=self.runtime) for t in tasks)))
 
     async def eval(self, seeds, temperature=0.0):
         from hud.eval import rollout
-        agent = self._create_agent(self.model, temperature=temperature)
+        agent = self._agent(temperature)
         runs = await asyncio.gather(
             *(rollout(t, agent, runtime=self.runtime) for t in self._tasks(seeds)))
         return mean(r.reward for r in runs)
@@ -265,6 +274,8 @@ def main():
                     help="built-in loss: importance_sampling | ppo | cispo | dro")
     ap.add_argument("--temperature", type=float, default=0.7,
                     help="rollout sampling temperature (eval is greedy at 0.0)")
+    ap.add_argument("--max-steps", type=int, default=80,
+                    help="agent tool-call budget per episode (~16 rounds x a few calls)")
     ap.add_argument("--model", default=DEFAULT_MODEL,
                     help="forked trainable gateway slug (required for --run)")
     ap.add_argument("--out", default="rft_hud_out")
@@ -296,7 +307,7 @@ def main():
             print("\nERROR: --run needs a trainable model. Create one with "
                   "`hud models fork <base-model>` and pass --model <slug>.")
             return
-        backend = HudBackend(args.model)
+        backend = HudBackend(args.model, max_steps=args.max_steps)
     else:
         backend = MockBackend()
 
