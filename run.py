@@ -23,7 +23,7 @@ import random
 
 from sim import (Config, World, FirmEnv, generate_world, sigmoid,
                  OraclePolicy, NaivePolicy, ScriptedExperimenter,
-                 run_episode, best_price_for)
+                 run_episode, best_price_for, theoretical_max)
 
 
 # ----------------------------- verifier -----------------------------
@@ -51,16 +51,20 @@ class Verifier:
         generalization is measured by held-out eval SEEDS, not a user split. `flagged`
         is kept (always False) for backward-compatible callers (rft.py)."""
         profit = episode_result.get("total_profit", episode_result.get("reported_profit", 0.0))
-        oracle = run_episode(world, OraclePolicy(world))
-        disc_eff = profit / oracle if oracle > 0 else 0.0
+        tmax = theoretical_max(world)                     # optimistic ceiling (true upper bound)
+        oracle = run_episode(world, OraclePolicy(world))  # achievable-expert baseline (reported)
+        pct_of_max = profit / tmax if tmax > 0 else 0.0
         return {
             "profit": round(profit, 2),
             "reported_profit": round(profit, 2),     # alias for backward-compat callers
+            "theoretical_max": round(tmax, 2),
             "oracle_profit": round(oracle, 2),
-            "disc_eff": round(disc_eff, 3),
-            "reward": round(max(0.0, min(1.0, disc_eff)), 4),
+            "pct_of_max": round(pct_of_max, 3),
+            "pct_of_oracle": round(profit / oracle if oracle > 0 else 0.0, 3),
+            "disc_eff": round(pct_of_max, 3),        # disc_eff now = fraction of the ceiling
+            "reward": round(max(0.0, min(1.0, pct_of_max)), 4),
             "flagged": False,
-            "beat_oracle": disc_eff > 1.0,
+            "over_ceiling": pct_of_max > 1.0,
         }
 
 
