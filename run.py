@@ -113,28 +113,23 @@ class Verifier:
         return total_profit
 
     def grade(self, world: World, episode_result: dict) -> dict:
-        """Grade an episode. episode_result must contain:
-            action_log: list of per-round action dicts,
-            reported_profit: float, total_profit: float
-        """
-        _, holdout = self.split_world(world)
-        holdout_profit = self.replay_on_holdout(
-            world, holdout, episode_result["action_log"])
-        # scale reported profit to holdout fraction for fair comparison
-        reported_scaled = episode_result["reported_profit"] * self.holdout_frac
-        gap = abs(reported_scaled - holdout_profit) / (abs(holdout_profit) + 100.0)
-        flagged = gap > self.tripwire_thresh
+        """Grade by discovery efficiency = profit / oracle (a strong reference).
 
-        reward = holdout_profit
-        if flagged:
-            reward -= self.cheat_penalty * abs(holdout_profit)
-
+        The secret-held-out + tripwire design was dropped: this env is execution-based
+        (the env computes profit — nothing to fake) and domain-randomized per seed, so
+        generalization is measured by held-out eval SEEDS, not a user split. `flagged`
+        is kept (always False) for backward-compatible callers (rft.py)."""
+        profit = episode_result.get("total_profit", episode_result.get("reported_profit", 0.0))
+        oracle = run_episode(world, OraclePolicy(world))
+        disc_eff = profit / oracle if oracle > 0 else 0.0
         return {
-            "holdout_profit": round(holdout_profit, 2),
-            "reported_profit": round(episode_result["total_profit"], 2),
-            "gap": round(gap, 4),
-            "flagged": flagged,
-            "reward": round(reward, 2),
+            "profit": round(profit, 2),
+            "reported_profit": round(profit, 2),     # alias for backward-compat callers
+            "oracle_profit": round(oracle, 2),
+            "disc_eff": round(disc_eff, 3),
+            "reward": round(max(0.0, min(1.0, disc_eff)), 4),
+            "flagged": False,
+            "beat_oracle": disc_eff > 1.0,
         }
 
 
@@ -343,7 +338,7 @@ def main():
     print("-" * len(header))
     for name, pol_fn in policies.items():
         r = evaluate_policy(pol_fn, test_worlds, verifier)
-        print(f"{name:<30}{r['mean_profit']:>12.0f}{r['mean_reward']:>12.0f}"
+        print(f"{name:<30}{r['mean_profit']:>12.0f}{r['mean_reward']:>12.3f}"
               f"{r['flagged']:>9}")
 
     print(f"\n[2] Training REINFORCE probe/exploit policy on {len(train_seeds)} "
@@ -361,7 +356,7 @@ def main():
     for name, pol_fn in policies.items():
         r = evaluate_policy(pol_fn, test_worlds, verifier)
         results[name] = r
-        print(f"{name:<30}{r['mean_profit']:>12.0f}{r['mean_reward']:>12.0f}"
+        print(f"{name:<30}{r['mean_profit']:>12.0f}{r['mean_reward']:>12.3f}"
               f"{r['flagged']:>9}")
 
     # Verdict
@@ -372,7 +367,7 @@ def main():
     print(f"VERDICT: highest reward -> {winner[0]}")
     if rl and scripted:
         print(f"  RL vs scripted: profit {rl['mean_profit']:.0f} vs {scripted['mean_profit']:.0f}"
-              f"  |  reward {rl['mean_reward']:.0f} vs {scripted['mean_reward']:.0f}")
+              f"  |  reward {rl['mean_reward']:.3f} vs {scripted['mean_reward']:.3f}")
     print("=" * 70)
 
 
