@@ -9,3 +9,4 @@ artifacts/
 *.log
 uv.lock
 artifacts_iter1_backup/
+rft_gcp_out/
