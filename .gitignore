@@ -10,3 +10,4 @@ artifacts/
 uv.lock
 artifacts_iter1_backup/
 rft_gcp_out/
+artifacts_iter2_phase_a_demo/
