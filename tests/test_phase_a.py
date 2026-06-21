@@ -87,6 +87,39 @@ def test_channel_forwarded_through_step():        # CR2: channel/craft survive e
     assert o1["per_campaign"][0]["tries"] > o2["per_campaign"][0]["tries"]
 
 
+# --------------------- Steps 4-5: elasticity + quality_bar/bounce ---------------------
+
+def test_elasticity_uses_per_user_beta():        # CR3: fails on v1 (shared beta), passes after
+    import sim as S
+    cfg = Config.phase_a(); w = generate_world(1, cfg); env = FirmEnv(w)
+    u = max(w.users[:500], key=lambda x: abs(x.elasticity - cfg.beta))
+    assert abs(u.elasticity - cfg.beta) > 1e-3, "need a user with non-default elasticity"
+    for p in u.pains:
+        env.built[w.solves[p]] = 1.0
+    env.price = 90.0
+    ff = env._fulfilled_fraction(u); pt = (u.wtp - env.price) / u.wtp
+    gate = S.sigmoid(cfg.quality_gate_k * (ff - u.quality_bar))           # quality_bar also on under phase_a
+    per_user = S.sigmoid(cfg.alpha * ff + u.elasticity * pt - cfg.gamma) * gate
+    v1_value = S.sigmoid(cfg.alpha * ff + cfg.beta * pt - cfg.gamma)      # v1: shared beta, no gate
+    got = env._p_buy(u)
+    assert abs(got - per_user) < 1e-9            # _p_buy uses beta_u = user.elasticity
+    assert abs(got - v1_value) > 1e-6            # ...and that differs from v1
+
+def test_quality_bar_emits_distinct_bounce_signal():
+    from collections import defaultdict
+    cfg = Config.phase_a(n_users=400); w = generate_world(1, cfg); env = FirmEnv(w)
+    p = _popular_pain(w, cfg)
+    env.built[w.solves[p]] = 0.05                # built but LOW quality
+    env.price = 25.0                             # cheap, so price isn't the blocker
+    wt = defaultdict(float)
+    for i in w.users_by_pain[p]:
+        wt[w.users[i].channel_pref] += 1
+    ch = max(wt, key=wt.get)
+    r = env._run_campaign({p}, 9000.0, channel=ch)
+    assert r["bounced_quality"] > r["bounced_price"]     # failure attributed to quality, not price
+    assert r["purchases"] < 0.5 * r["tries"]             # low quality suppresses conversion
+
+
 if __name__ == "__main__":
     import traceback
     fails = 0

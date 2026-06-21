@@ -349,9 +349,14 @@ class FirmEnv:
         return got / len(user.pains)
 
     def _p_buy(self, user: User) -> float:
+        cfg = self.cfg
         ff = self._fulfilled_fraction(user)
         price_term = (user.wtp - self.price) / user.wtp
-        return sigmoid(self.cfg.alpha * ff + self.cfg.beta * price_term - self.cfg.gamma)
+        beta_u = user.elasticity if (cfg.use_elasticity and user.elasticity is not None) else cfg.beta
+        p = sigmoid(cfg.alpha * ff + beta_u * price_term - cfg.gamma)
+        if cfg.use_quality_bar:
+            p *= sigmoid(cfg.quality_gate_k * (ff - user.quality_bar))   # soft quality gate
+        return p
 
     def _run_campaign(self, target: set, spend: float, channel: int = 0, craft: float = 1.0):
         cfg = self.cfg
@@ -363,12 +368,15 @@ class FirmEnv:
         pool = sorted(pool)
         if spend <= 0 or not target:
             return {"target": sorted(target), "audience": len(pool), "impressions": 0,
-                    "tries": 0.0, "purchases": 0.0, "revenue": 0.0, "spend": spend}
+                    "tries": 0.0, "purchases": 0.0, "bounced_quality": 0.0,
+                    "bounced_price": 0.0, "revenue": 0.0, "spend": spend}
         impressions = int(spend * cfg.impressions_per_dollar)
         reached = pool[:impressions]
 
         tries = 0.0
         purchases = 0.0
+        bounced_quality = 0.0      # resonated + reached, but blocked by the quality bar
+        bounced_price = 0.0        # passed quality, but lost on price
         for idx in reached:
             u = self.w.users[idx]
             resonance = len(target & u.pains) / len(u.pains)
@@ -380,9 +388,20 @@ class FirmEnv:
             p_buy = self._p_buy(u)
             tries += p_try
             purchases += p_try * p_buy
+            # bounce-reason diagnostics: make quality vs price failures separately
+            # observable (the C1 separability fix). Heuristic signals, not exact partition.
+            if cfg.use_quality_bar or cfg.use_elasticity:
+                ff = self._fulfilled_fraction(u)
+                beta_u = u.elasticity if (cfg.use_elasticity and u.elasticity is not None) else cfg.beta
+                gate = sigmoid(cfg.quality_gate_k * (ff - u.quality_bar)) if cfg.use_quality_bar else 1.0
+                price_accept = sigmoid(beta_u * (u.wtp - self.price) / u.wtp)
+                bounced_quality += p_try * (1.0 - gate)
+                bounced_price += p_try * gate * (1.0 - price_accept)
         revenue = purchases * self.price
         return {"target": sorted(target), "audience": len(pool), "impressions": len(reached),
                 "tries": round(tries, 2), "purchases": round(purchases, 2),
+                "bounced_quality": round(bounced_quality, 2),
+                "bounced_price": round(bounced_price, 2),
                 "revenue": round(revenue, 2), "spend": spend}
 
     def step(self, action: dict):
