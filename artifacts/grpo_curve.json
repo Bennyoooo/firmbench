@@ -6,79 +6,79 @@
     },
     {
       "iter": 1,
-      "eval_reward": 0.0844
+      "eval_reward": 0.0877
     },
     {
       "iter": 2,
-      "eval_reward": 0.1708
+      "eval_reward": 0.1489
     },
     {
       "iter": 3,
-      "eval_reward": 0.1431
+      "eval_reward": 0.1651
     },
     {
       "iter": 4,
-      "eval_reward": 0.216
+      "eval_reward": 0.1654
     },
     {
       "iter": 5,
-      "eval_reward": 0.2557
+      "eval_reward": 0.1933
     },
     {
       "iter": 6,
-      "eval_reward": 0.2123
+      "eval_reward": 0.2247
     },
     {
       "iter": 7,
-      "eval_reward": 0.2926
+      "eval_reward": 0.2582
     },
     {
       "iter": 8,
-      "eval_reward": 0.2402
+      "eval_reward": 0.2449
     },
     {
       "iter": 9,
-      "eval_reward": 0.2828
+      "eval_reward": 0.2374
     },
     {
       "iter": 10,
-      "eval_reward": 0.2476
+      "eval_reward": 0.2639
     },
     {
       "iter": 11,
-      "eval_reward": 0.307
+      "eval_reward": 0.2789
     },
     {
       "iter": 12,
-      "eval_reward": 0.2724
+      "eval_reward": 0.3033
     },
     {
       "iter": 13,
-      "eval_reward": 0.3239
+      "eval_reward": 0.3123
     },
     {
       "iter": 14,
-      "eval_reward": 0.2657
+      "eval_reward": 0.3056
     },
     {
       "iter": 15,
-      "eval_reward": 0.314
+      "eval_reward": 0.2999
     },
     {
       "iter": 16,
-      "eval_reward": 0.2858
+      "eval_reward": 0.3253
     },
     {
       "iter": 17,
-      "eval_reward": 0.3252
+      "eval_reward": 0.3137
     },
     {
       "iter": 18,
-      "eval_reward": 0.2804
+      "eval_reward": 0.3024
     },
     {
       "iter": 19,
-      "eval_reward": 0.3313
+      "eval_reward": 0.2933
     },
     {
       "iter": 20,

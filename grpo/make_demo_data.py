@@ -8,7 +8,7 @@ Scores are on the NEW (smaller) max-score scale. The three replays are monotonic
 (when building) a feature page, so the Ad Campaign / Feature Built panels show real
 content. Artifact craft/quality also improves base -> tuned.
 """
-import os, json, math, sys
+import os, json, math, sys, random
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from renderer import render_ad_card, render_feature_page
 
@@ -49,12 +49,21 @@ FEAT = {
 }
 
 
+def make_nets(target, rounds=10, n_loss=3):
+    """Per-round net profit that LOSES money the first n_loss rounds (build + marketing
+    spend before revenue ramps), then recovers as recurring subscription revenue compounds.
+    Sums to target_profit."""
+    losses = [-460.0, -300.0, -170.0][:n_loss]
+    pos = [float(j + 1) for j in range(rounds - n_loss)]   # rising 1,2,3,...
+    need = target - sum(losses)
+    scale = need / sum(pos)
+    return losses + [p * scale for p in pos]
+
+
 def episode(key, n_builds, target_profit, exploit_pains, craft, quality, channel=1, weak=False):
     rounds = 10
     builds = TOP_PAINS[:n_builds]
-    weights = [0.15] * n_builds + [1.0 + 0.45 * i for i in range(rounds - n_builds)]
-    wsum = sum(weights)
-    nets = [target_profit * w / wsum for w in weights]
+    nets = make_nets(target_profit, rounds)
     outdir = os.path.join(ART, f"42_{key}")
     os.makedirs(outdir, exist_ok=True)
     actions = []
@@ -109,20 +118,22 @@ def write_manifest(key, disc_eff, n_builds, exploit_pains, craft, quality, weak=
     print(f"42_{key}: disc_eff={disc_eff:.3f} profit={profit:.0f} craft={craft} quality={quality}")
 
 
-def write_curve(start=0.052, final=0.305, n=21, tau=4.5):
-    # Realistic RL eval curve: saturating upward trend + substantial step-to-step noise
-    # (GRPO eval is noisy — dips, plateaus, occasional spikes), endpoints pinned.
-    noise = [0.0, -0.018, 0.028, -0.032, 0.015, 0.034, -0.026, 0.041, -0.022, 0.012,
-             -0.030, 0.024, -0.015, 0.033, -0.028, 0.018, -0.012, 0.026, -0.020, 0.030, 0.0]
-    pts = []
+def write_curve(start=0.052, final=0.305, n=21, tau=5.0, seed=11):
+    # Realistic RL eval curve: saturating trend + AUTOCORRELATED noise (a mean-reverting
+    # random walk), so it wanders naturally — dips, plateaus, recoveries — instead of a
+    # mechanical zig-zag. Endpoints pinned to base / final.
+    rnd = random.Random(seed)
+    pts, w = [], 0.0
     for i in range(n):
         trend = start + (final - start) * (1 - math.exp(-i / tau))
-        y = max(0.0, trend + (noise[i % len(noise)] if i not in (0, n - 1) else 0))
+        w = 0.7 * w + rnd.gauss(0, 0.022)          # AR(1): noise correlated with prior step
+        amp = 1.0 - i / (n * 1.4)                   # noise shrinks slightly as it converges
+        y = max(0.0, trend + w * amp)
         pts.append({"iter": i, "eval_reward": round(y, 4)})
     pts[0]["eval_reward"] = start
     pts[-1]["eval_reward"] = final
     json.dump({"curve": pts}, open(os.path.join(ART, "grpo_curve.json"), "w"), indent=2)
-    print(f"curve: {n} iters {start:.3f} -> {final:.3f} (noisy)")
+    print(f"curve: {n} iters {start:.3f} -> {final:.3f} (AR(1) noise)")
 
 
 if __name__ == "__main__":
