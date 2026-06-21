@@ -177,13 +177,13 @@ def _make_segments(rng, cfg):
     return segs
 
 
-def _resample_users_from_segments(rng, cfg, segments):
+def _resample_users_from_segments(rng, cfg, segments, n_users=None):
     """Hybrid population: persona backbone (pains/channel/quality_bar) + per-user
     noise on wtp/elasticity."""
     pains = list(range(cfg.n_pains))
     seg_weights = [s.weight for s in segments]
     users = []
-    for _ in range(cfg.n_users):
+    for _ in range(n_users or cfg.n_users):
         s_idx = _weighted_pick(rng, range(cfg.n_segments), seg_weights)
         seg = segments[s_idx]
         k = rng.choice([1, 2, 3])
@@ -254,6 +254,10 @@ def generate_world(seed: int, cfg: Config = None) -> World:
     cfg = cfg or Config()
     rng = random.Random(seed)
 
+    # Randomize population size per seed (±40% around cfg.n_users)
+    # Makes each world a different scale challenge
+    n_users_actual = rng.randint(int(cfg.n_users * 0.6), int(cfg.n_users * 1.4))
+
     pains = list(range(cfg.n_pains))
     features = list(range(cfg.n_features))
 
@@ -270,7 +274,7 @@ def generate_world(seed: int, cfg: Config = None) -> World:
         weight_by_pain[p] = 1.0 / (rank_index + 1)
 
     users = []
-    for _ in range(cfg.n_users):
+    for _ in range(n_users_actual):
         k = rng.choice([1, 2, 3])
         up = _weighted_sample_without_replacement(pains, weight_by_pain, k, rng)
         wtp = rng.lognormvariate(cfg.wtp_mu, cfg.wtp_sigma)
@@ -287,7 +291,7 @@ def generate_world(seed: int, cfg: Config = None) -> World:
     segments = None
     if cfg.use_segments:
         segments = _make_segments(rng, cfg)
-        users = _resample_users_from_segments(rng, cfg, segments)
+        users = _resample_users_from_segments(rng, cfg, segments, n_users=n_users_actual)
         users_by_pain = {p: [] for p in pains}
         for idx, u in enumerate(users):
             for p in u.pains:
