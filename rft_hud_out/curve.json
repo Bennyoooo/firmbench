@@ -1,0 +1,60 @@
+{
+  "curve": [
+    {
+      "step": 0,
+      "model": "base",
+      "eval": 0.0685
+    },
+    {
+      "step": 1,
+      "eval": 0.0506,
+      "train_mean_reward": 0.0413,
+      "n_rollouts": 16,
+      "skill": 0.322
+    },
+    {
+      "step": 2,
+      "eval": 0.3223,
+      "train_mean_reward": 0.0315,
+      "n_rollouts": 16,
+      "skill": 0.456
+    },
+    {
+      "step": 3,
+      "eval": 0.2558,
+      "train_mean_reward": 0.0654,
+      "n_rollouts": 16,
+      "skill": 0.574
+    },
+    {
+      "step": 4,
+      "eval": 0.6988,
+      "train_mean_reward": 0.282,
+      "n_rollouts": 16,
+      "skill": 0.716
+    }
+  ],
+  "references": {
+    "oracle": 1.0,
+    "scripted": 0.9636791466190904,
+    "naive": 0.0740241973819585
+  },
+  "config": {
+    "steps": 4,
+    "group_size": 4,
+    "lr": 1e-05,
+    "loss_fn": "importance_sampling",
+    "train_seeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "eval_seeds": [
+      100,
+      101,
+      102,
+      103
+    ]
+  }
+}
