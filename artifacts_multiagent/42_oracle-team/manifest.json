@@ -1,0 +1,627 @@
+{
+  "seed": 42,
+  "rounds": 16,
+  "final_reward": 0.5389,
+  "team_profit": 938087.7,
+  "profit": 938087.7,
+  "theoretical_max": 1740740.82,
+  "oracle_profit": 938087.7,
+  "disc_eff": 0.539,
+  "pct_of_oracle": 1.0,
+  "coordination_tax": 0.0,
+  "pain_names": [
+    "confusing permissions",
+    "slow page loads",
+    "complex pricing",
+    "slow onboarding",
+    "lack of reporting",
+    "poor search",
+    "difficult migration",
+    "data export limitations"
+  ],
+  "feature_names": [
+    "smart search",
+    "CDN accelerator",
+    "mobile app",
+    "data exporter",
+    "migration toolkit",
+    "offline sync engine",
+    "role manager",
+    "security hardener"
+  ],
+  "actions": [
+    {
+      "build": 2,
+      "price": 49.4,
+      "budget": 10030.0,
+      "messages": [
+        {
+          "role": "coordinator",
+          "text": "PHASE: exploit | BUDGET: 10030"
+        },
+        {
+          "role": "builder",
+          "text": "BUILT: feature 2"
+        },
+        {
+          "role": "marketer",
+          "text": "TARGETS: [4]"
+        }
+      ],
+      "campaigns": [
+        {
+          "target": [
+            4
+          ],
+          "channel": 1,
+          "spend": 10030.0,
+          "audience": 2006,
+          "tries": 630.71,
+          "purchases": 190.5,
+          "revenue": 9410.9
+        }
+      ],
+      "round_profit": -919.06
+    },
+    {
+      "build": 0,
+      "price": 49.4,
+      "budget": 16267.52,
+      "messages": [
+        {
+          "role": "coordinator",
+          "text": "PHASE: exploit | BUDGET: 16268"
+        },
+        {
+          "role": "builder",
+          "text": "BUILT: feature 0"
+        },
+        {
+          "role": "marketer",
+          "text": "TARGETS: [4, 6]"
+        }
+      ],
+      "campaigns": [
+        {
+          "target": [
+            4,
+            6
+          ],
+          "channel": 1,
+          "spend": 16267.5,
+          "audience": 3444,
+          "tries": 1402.29,
+          "purchases": 472.97,
+          "revenue": 23365.8
+        }
+      ],
+      "round_profit": 14738.19
+    },
+    {
+      "build": 3,
+      "price": 49.4,
+      "budget": 18312.68,
+      "messages": [
+        {
+          "role": "coordinator",
+          "text": "PHASE: exploit | BUDGET: 18313"
+        },
+        {
+          "role": "builder",
+          "text": "BUILT: feature 3"
+        },
+        {
+          "role": "marketer",
+          "text": "TARGETS: [0, 4, 6]"
+        }
+      ],
+      "campaigns": [
+        {
+          "target": [
+            0,
+            4,
+            6
+          ],
+          "channel": 1,
+          "spend": 18312.7,
+          "audience": 4326,
+          "tries": 1607.96,
+          "purchases": 436.81,
+          "revenue": 21579.5
+        }
+      ],
+      "round_profit": 31275.93
+    },
+    {
+      "build": 6,
+      "price": 49.4,
+      "budget": 18453.63,
+      "messages": [
+        {
+          "role": "coordinator",
+          "text": "PHASE: exploit | BUDGET: 18454"
+        },
+        {
+          "role": "builder",
+          "text": "BUILT: feature 6"
+        },
+        {
+          "role": "marketer",
+          "text": "TARGETS: [0, 2, 4, 6]"
+        }
+      ],
+      "campaigns": [
+        {
+          "target": [
+            0,
+            2,
+            4,
+            6
+          ],
+          "channel": 1,
+          "spend": 18453.6,
+          "audience": 4791,
+          "tries": 1919.96,
+          "purchases": 548.36,
+          "revenue": 27090.1
+        }
+      ],
+      "round_profit": 53678.51
+    },
+    {
+      "build": 4,
+      "price": 49.4,
+      "budget": 17491.85,
+      "messages": [
+        {
+          "role": "coordinator",
+          "text": "PHASE: exploit | BUDGET: 17492"
+        },
+        {
+          "role": "builder",
+          "text": "BUILT: feature 4"
+        },
+        {
+          "role": "marketer",
+          "text": "TARGETS: [0, 1, 2, 4, 6]"
+        }
+      ],
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6
+          ],
+          "channel": 1,
+          "spend": 17491.9,
+          "audience": 5147,
+          "tries": 1951.96,
+          "purchases": 431.45,
+          "revenue": 21314.7
+        }
+      ],
+      "round_profit": 69429.52
+    },
+    {
+      "build": 1,
+      "price": 49.4,
+      "budget": 16344.6,
+      "messages": [
+        {
+          "role": "coordinator",
+          "text": "PHASE: exploit | BUDGET: 16345"
+        },
+        {
+          "role": "builder",
+          "text": "BUILT: feature 1"
+        },
+        {
+          "role": "marketer",
+          "text": "TARGETS: [0, 1, 2, 4, 6, 7]"
+        }
+      ],
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "channel": 1,
+          "spend": 16344.6,
+          "audience": 5349,
+          "tries": 1931.38,
+          "purchases": 347.26,
+          "revenue": 17155.5
+        }
+      ],
+      "round_profit": 79861.9
+    },
+    {
+      "build": null,
+      "price": 49.4,
+      "budget": 14608.3,
+      "messages": [
+        {
+          "role": "coordinator",
+          "text": "PHASE: exploit | BUDGET: 14608"
+        },
+        {
+          "role": "builder",
+          "text": "BUILT: none"
+        },
+        {
+          "role": "marketer",
+          "text": "TARGETS: [0, 1, 2, 4, 6, 7]"
+        }
+      ],
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "channel": 1,
+          "spend": 14608.3,
+          "audience": 5349,
+          "tries": 1721.38,
+          "purchases": 186.94,
+          "revenue": 9235.4
+        }
+      ],
+      "round_profit": 82557.67
+    },
+    {
+      "build": null,
+      "price": 49.4,
+      "budget": 13673.59,
+      "messages": [
+        {
+          "role": "coordinator",
+          "text": "PHASE: exploit | BUDGET: 13674"
+        },
+        {
+          "role": "builder",
+          "text": "BUILT: none"
+        },
+        {
+          "role": "marketer",
+          "text": "TARGETS: [0, 1, 2, 4, 6, 7]"
+        }
+      ],
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "channel": 1,
+          "spend": 13673.6,
+          "audience": 5349,
+          "tries": 1618.04,
+          "purchases": 126.9,
+          "revenue": 6269.1
+        }
+      ],
+      "round_profit": 81349.32
+    },
+    {
+      "build": null,
+      "price": 49.4,
+      "budget": 13039.1,
+      "messages": [
+        {
+          "role": "coordinator",
+          "text": "PHASE: exploit | BUDGET: 13039"
+        },
+        {
+          "role": "builder",
+          "text": "BUILT: none"
+        },
+        {
+          "role": "marketer",
+          "text": "TARGETS: [0, 1, 2, 4, 6, 7]"
+        }
+      ],
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "channel": 1,
+          "spend": 13039.1,
+          "audience": 5349,
+          "tries": 1544.92,
+          "purchases": 94.21,
+          "revenue": 4654.4
+        }
+      ],
+      "round_profit": 78632.09
+    },
+    {
+      "build": null,
+      "price": 49.4,
+      "budget": 12568.03,
+      "messages": [
+        {
+          "role": "coordinator",
+          "text": "PHASE: exploit | BUDGET: 12568"
+        },
+        {
+          "role": "builder",
+          "text": "BUILT: none"
+        },
+        {
+          "role": "marketer",
+          "text": "TARGETS: [0, 1, 2, 4, 6, 7]"
+        }
+      ],
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "channel": 1,
+          "spend": 12568.0,
+          "audience": 5349,
+          "tries": 1490.04,
+          "purchases": 73.84,
+          "revenue": 3647.7
+        }
+      ],
+      "round_profit": 75227.64
+    },
+    {
+      "build": null,
+      "price": 49.4,
+      "budget": 12198.85,
+      "messages": [
+        {
+          "role": "coordinator",
+          "text": "PHASE: exploit | BUDGET: 12199"
+        },
+        {
+          "role": "builder",
+          "text": "BUILT: none"
+        },
+        {
+          "role": "marketer",
+          "text": "TARGETS: [0, 1, 2, 4, 6, 7]"
+        }
+      ],
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "channel": 1,
+          "spend": 12198.8,
+          "audience": 5349,
+          "tries": 1450.33,
+          "purchases": 59.24,
+          "revenue": 2926.6
+        }
+      ],
+      "round_profit": 71497.7
+    },
+    {
+      "build": null,
+      "price": 49.4,
+      "budget": 11902.65,
+      "messages": [
+        {
+          "role": "coordinator",
+          "text": "PHASE: exploit | BUDGET: 11903"
+        },
+        {
+          "role": "builder",
+          "text": "BUILT: none"
+        },
+        {
+          "role": "marketer",
+          "text": "TARGETS: [0, 1, 2, 4, 6, 7]"
+        }
+      ],
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "channel": 1,
+          "spend": 11902.6,
+          "audience": 5349,
+          "tries": 1416.71,
+          "purchases": 48.45,
+          "revenue": 2393.6
+        }
+      ],
+      "round_profit": 67647.74
+    },
+    {
+      "build": null,
+      "price": 49.4,
+      "budget": 11660.4,
+      "messages": [
+        {
+          "role": "coordinator",
+          "text": "PHASE: exploit | BUDGET: 11660"
+        },
+        {
+          "role": "builder",
+          "text": "BUILT: none"
+        },
+        {
+          "role": "marketer",
+          "text": "TARGETS: [0, 1, 2, 4, 6, 7]"
+        }
+      ],
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "channel": 1,
+          "spend": 11660.4,
+          "audience": 5349,
+          "tries": 1386.38,
+          "purchases": 40.37,
+          "revenue": 1994.4
+        }
+      ],
+      "round_profit": 63807.31
+    },
+    {
+      "build": null,
+      "price": 49.4,
+      "budget": 11458.55,
+      "messages": [
+        {
+          "role": "coordinator",
+          "text": "PHASE: exploit | BUDGET: 11459"
+        },
+        {
+          "role": "builder",
+          "text": "BUILT: none"
+        },
+        {
+          "role": "marketer",
+          "text": "TARGETS: [0, 1, 2, 4, 6, 7]"
+        }
+      ],
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "channel": 1,
+          "spend": 11458.5,
+          "audience": 5349,
+          "tries": 1361.5,
+          "purchases": 33.86,
+          "revenue": 1672.5
+        }
+      ],
+      "round_profit": 60038.22
+    },
+    {
+      "build": null,
+      "price": 49.4,
+      "budget": 11289.27,
+      "messages": [
+        {
+          "role": "coordinator",
+          "text": "PHASE: exploit | BUDGET: 11289"
+        },
+        {
+          "role": "builder",
+          "text": "BUILT: none"
+        },
+        {
+          "role": "marketer",
+          "text": "TARGETS: [0, 1, 2, 4, 6, 7]"
+        }
+      ],
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "channel": 1,
+          "spend": 11289.3,
+          "audience": 5349,
+          "tries": 1342.17,
+          "purchases": 28.73,
+          "revenue": 1419.5
+        }
+      ],
+      "round_profit": 56387.69
+    },
+    {
+      "build": null,
+      "price": 49.4,
+      "budget": 11145.6,
+      "messages": [
+        {
+          "role": "coordinator",
+          "text": "PHASE: exploit | BUDGET: 11146"
+        },
+        {
+          "role": "builder",
+          "text": "BUILT: none"
+        },
+        {
+          "role": "marketer",
+          "text": "TARGETS: [0, 1, 2, 4, 6, 7]"
+        }
+      ],
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "channel": 1,
+          "spend": 11145.6,
+          "audience": 5349,
+          "tries": 1327.96,
+          "purchases": 24.51,
+          "revenue": 1210.8
+        }
+      ],
+      "round_profit": 52877.31
+    }
+  ]
+}

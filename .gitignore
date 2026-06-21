@@ -12,7 +12,8 @@ artifacts_iter1_backup/
 rft_gcp_out/
 artifacts_iter2_phase_a_demo/
 rl_grpo_out/
-artifacts_multiagent/
+artifacts_multiagent/*
+!artifacts_multiagent/*-team/
 rft_hud_team_out/
 .gstack/
 grpo/sim.py
