@@ -235,8 +235,9 @@ class MultiAgentFirmEnv:
 
 def run_team_episode(world, team, on_turn=None):
     """Drive a team through one episode. `team` exposes `reset()` and
-    `act(role, obs, menv) -> (action, message)`. `on_turn(role, obs, action, menv)` (optional)
-    fires per role-turn so a training harness can record (prompt, completion) role-turns.
+    `act(role, obs, menv) -> (action, message)`. `on_turn(role, obs, action, message, menv)`
+    (optional) fires per role-turn so a training harness can record (prompt, completion)
+    role-turns for shared-policy SFT/RL.
 
     Returns (action_log, total_profit). action_log is replay-compatible (sim.replay_profit).
     """
@@ -249,7 +250,7 @@ def run_team_episode(world, team, on_turn=None):
             obs = menv.role_obs(role)            # fresh: picks up earlier roles' messages
             action, message = team.act(role, obs, menv)
             if on_turn is not None:
-                on_turn(role, obs, action, menv)
+                on_turn(role, obs, action, message, menv)
             menv.submit(role, action, message=message)
         _obs, _profit, _done, committed = menv.commit()
         action_log.append({
@@ -456,6 +457,51 @@ class NaiveTeam(_Team):
     learns the targets (flat price). The gap vs ScriptedTeam is the coordination tax."""
     READS_MESSAGES = False
     name = "naive-team"
+
+
+class OracleTeam:
+    """The CEILING team: the single-agent OraclePolicy's action, split across the four roles
+    (Coordinator budget = oracle spend; Builder = oracle build; Pricer = oracle price;
+    Marketer = oracle campaigns). When committed it reproduces the oracle action, so
+    team_profit == oracle_profit (disc_eff ~1.0). It carries the optimal blackboard messages.
+
+    This is the policy the training mock IMITATES (parameter sharing bends the RL curve toward
+    the ceiling, exactly like rft_hud's single-agent mock imitates OraclePolicy)."""
+    name = "oracle-team"
+
+    def __init__(self, world, seed=0):
+        self.w = world
+        self.oracle = OraclePolicy(world)
+
+    def reset(self):
+        self.oracle.reset()
+        self._cached = None
+        self._round = -1
+
+    def _full_action(self, menv):
+        if self._cached is None or self._round != menv.round:
+            obs = menv.env._state_obs(per_campaign=menv._last_per_campaign)
+            self._cached = self.oracle.act(menv.env, obs)
+            self._round = menv.round
+        return self._cached
+
+    def act(self, role, obs, menv):
+        a = self._full_action(menv)
+        if role == "coordinator":
+            spend = sum(float(c.get("spend", 0.0)) for c in a.get("campaigns", []))
+            return {"budget": spend}, f"PHASE: exploit | BUDGET: {spend:.0f}"
+        if role == "builder":
+            b = a.get("build")
+            return {"build": b}, (f"BUILT: feature {b}" if b is not None else "BUILT: none")
+        if role == "pricer":
+            return {"price": a.get("price", menv.env.price)}, None
+        if role == "marketer":
+            camps = [{"target": set(c.get("target", set())), "spend": float(c.get("spend", 0.0)),
+                      "channel": int(c.get("channel", 0)), "craft": float(c.get("craft", 1.0))}
+                     for c in a.get("campaigns", [])]
+            tgts = sorted({p for c in camps for p in c["target"]})
+            return {"campaigns": camps}, f"TARGETS: {tgts}"
+        raise ValueError(role)
 
 
 # ----------------------------- coordination tax + gate -----------------------------

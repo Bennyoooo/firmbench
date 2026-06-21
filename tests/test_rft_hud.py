@@ -66,6 +66,49 @@ def test_curve_json_written():
     assert data["config"]["loss_fn"] == "importance_sampling"
 
 
+# ----------------------------- Phase D: multi-agent team RL -----------------------------
+
+def test_team_references_ranked():
+    from rft_hud import local_team_ref
+    from multiagent import OracleTeam, ScriptedTeam, NaiveTeam
+    seeds = list(range(100, 104))
+    orc = local_team_ref(lambda w, s: OracleTeam(w, s), seeds)
+    scr = local_team_ref(lambda w, s: ScriptedTeam(w, s), seeds)
+    naive = local_team_ref(lambda w, s: NaiveTeam(w, s), seeds)
+    assert orc > scr > naive, (orc, scr, naive)
+    assert orc > 0.95, f"oracle team should be near the ceiling, got {orc}"
+
+
+def test_mock_team_rl_loop_bends_curve():
+    from rft_hud import MockTeamBackend, local_team_ref
+    from multiagent import OracleTeam, ScriptedTeam, NaiveTeam
+    seeds_e = [100, 101, 102, 103]
+    refs = {"oracle": local_team_ref(lambda w, s: OracleTeam(w, s), seeds_e),
+            "scripted": local_team_ref(lambda w, s: ScriptedTeam(w, s), seeds_e),
+            "naive": local_team_ref(lambda w, s: NaiveTeam(w, s), seeds_e)}
+    curve = asyncio.run(rl_loop(
+        MockTeamBackend(skill0=0.15),
+        train_seeds=[1, 2, 3, 4], eval_seeds=seeds_e,
+        steps=4, group_size=4, lr=1e-5, loss_fn="importance_sampling",
+        temperature=0.7, out_dir="rft_hud_team_out", references=refs))
+    base, final = curve[0]["eval"], curve[-1]["eval"]
+    assert final > base + 0.2, f"team RL curve should bend up: {base:.3f} -> {final:.3f}"
+    assert all(p["n_rollouts"] == 16 for p in curve[1:])
+
+
+def test_play_team_episode_records_role_turns():
+    from rft import play_team_episode
+    from multiagent import ScriptedTeam
+    w = generate_world(1, CFG)
+    records, action_log, profit = play_team_episode(w, ScriptedTeam(w, 1))
+    assert len(records) == 4 * len(action_log), "exactly 4 role-turns per round"
+    msgs = records[0]["messages"]
+    assert [m["role"] for m in msgs] == ["system", "user", "assistant"]
+    assert "```json" in msgs[2]["content"], "assistant emits a json action block"
+    tags = {r["messages"][1]["content"][:14] for r in records[:4]}
+    assert any("COORDINATOR" in t for t in tags) and any("MARKETER" in t for t in tags)
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for fn in fns:

@@ -197,17 +197,79 @@ class HudBackend:
                 "head_mean_reward": getattr(head, "mean_reward", None)}
 
 
+# ============================== Phase D: multi-agent team backends ==============================
+# Same on-policy GRPO loop, but each rollout is a TEAM-episode graded by team disc.eff. One
+# shared checkpoint plays all four roles (parameter sharing). The mock backend exercises the
+# grouped step offline; the HUD backend rolls out the pattern-A multi-agent env.
+
+def local_team_ref(team_factory, seeds):
+    """Deterministic team reward for a reference team (oracle/scripted/naive team)."""
+    from multiagent import run_team_episode
+    return mean(disc_eff(w := generate_world(s, CFG), run_team_episode(w, team_factory(w, s))[1])
+                for s in seeds)
+
+
+class MockTeamBackend:
+    """Offline stand-in for HUD: rolls out MockTeam episodes (OracleTeam with prob `skill`,
+    else NaiveTeam) graded by the env's real team disc_eff. `train_step` raises `skill` toward
+    the ceiling in proportion to the batch reward — a faithful policy-gradient stand-in that
+    bends the team curve toward the oracle."""
+
+    def __init__(self, skill0=0.15):
+        self.skill = skill0
+
+    def _episode_reward(self, seed, k, temperature):
+        from rft import MockTeam
+        from multiagent import run_team_episode
+        world = generate_world(seed, CFG)
+        team = MockTeam(world, skill=self.skill, seed=seed * 1000 + k, temperature=temperature)
+        return disc_eff(world, run_team_episode(world, team)[1])
+
+    async def rollout_group(self, seed, n, temperature):
+        return [_MockRun(self._episode_reward(seed, k, temperature)) for k in range(n)]
+
+    async def eval(self, seeds, temperature=0.0):
+        return mean(self._episode_reward(s, 0, temperature) for s in seeds)
+
+    async def train_step(self, runs, lr, loss_fn, group_size):
+        _check_groups(len(runs), group_size)
+        mr = mean(r.reward for r in runs)
+        gain = (0.18 + 0.55 * mr) * (1.0 - self.skill)
+        self.skill = min(0.97, self.skill + gain)
+        return {"mean_reward": mr, "skill": round(self.skill, 3)}
+
+
+class HudTeamBackend(HudBackend):
+    """Real team backend: rolls out the pattern-A multi-agent env (env_multiagent.py) through
+    the HUD gateway — each hud.Run is one team-episode (the Coordinator agent driving the four
+    roles via delegate tools), reward = team disc.eff. Training advances the shared checkpoint.
+    (Native per-role agents — pattern B — is the documented stretch.)"""
+
+    def __init__(self, model, max_steps=120):
+        super().__init__(model, env_path="env_multiagent.py", max_steps=max_steps)
+
+    def _tasks(self, seeds):
+        from env_multiagent import multiagent_market_discovery
+        from tasks import MULTIAGENT_SYSTEM_PROMPT
+        return [multiagent_market_discovery(prompt=MULTIAGENT_SYSTEM_PROMPT, seed=s) for s in seeds]
+
+
 # ============================== the RL loop ==============================
 
 async def rl_loop(backend, *, train_seeds, eval_seeds, steps, group_size, lr,
-                  loss_fn, temperature, out_dir):
+                  loss_fn, temperature, out_dir, references=None):
     os.makedirs(out_dir, exist_ok=True)
 
     # references (local, deterministic): oracle = ceiling (~1.0), scripted = strong
     # heuristic, naive = floor. disc_eff is already normalized so these read as fractions.
-    oracle = local_ref(lambda w, s: OraclePolicy(w), eval_seeds)
-    scripted = local_ref(lambda w, s: ScriptedExperimenter(w, s), eval_seeds)
-    naive = local_ref(lambda w, s: NaivePolicy(w, s), eval_seeds)
+    # Team mode passes team references (oracle_team/scripted_team/naive_team) via `references`.
+    if references is None:
+        references = {
+            "oracle": local_ref(lambda w, s: OraclePolicy(w), eval_seeds),
+            "scripted": local_ref(lambda w, s: ScriptedExperimenter(w, s), eval_seeds),
+            "naive": local_ref(lambda w, s: NaivePolicy(w, s), eval_seeds),
+        }
+    oracle, scripted, naive = references["oracle"], references["scripted"], references["naive"]
     print(f"\nReference (disc_eff)  oracle={oracle:.3f}  scripted={scripted:.3f}  "
           f"naive={naive:.3f}\n")
 
@@ -284,6 +346,8 @@ def main():
     ap.add_argument("--model", default=DEFAULT_MODEL,
                     help="forked trainable gateway slug (required for --run)")
     ap.add_argument("--out", default="rft_hud_out")
+    ap.add_argument("--multiagent", action="store_true",
+                    help="Phase D: shared-policy TEAM RL (each rollout is a team-episode)")
     args = ap.parse_args()
 
     if not args.selftest and not args.run:
@@ -293,14 +357,25 @@ def main():
 
     train_seeds = list(range(1, 1 + args.train_seeds))
     eval_seeds = list(range(100, 100 + args.eval_seeds))   # disjoint held-out seeds
+    out_dir = args.out if args.out != "rft_hud_out" or not args.multiagent else "rft_hud_team_out"
 
     print("=" * 60)
-    print("FirmBench — HUD-native on-policy RL")
+    print(f"FirmBench — HUD-native on-policy RL{' (MULTI-AGENT team)' if args.multiagent else ''}")
     print(f"mode={'selftest' if args.selftest else 'run'}  "
           f"model={args.model or '(mock)'}  loss={args.loss}")
     print(f"steps={args.steps}  group_size={args.group_size}  "
           f"train_worlds={len(train_seeds)}  eval_worlds={len(eval_seeds)}")
     print("=" * 60)
+
+    # team mode uses team references (oracle/scripted/naive TEAM); single-agent uses None
+    references = None
+    if args.multiagent:
+        from multiagent import OracleTeam, ScriptedTeam, NaiveTeam
+        references = {
+            "oracle": local_team_ref(lambda w, s: OracleTeam(w, s), eval_seeds),
+            "scripted": local_team_ref(lambda w, s: ScriptedTeam(w, s), eval_seeds),
+            "naive": local_team_ref(lambda w, s: NaiveTeam(w, s), eval_seeds),
+        }
 
     if args.run:
         from hud.settings import settings
@@ -312,15 +387,17 @@ def main():
             print("\nERROR: --run needs a trainable model. Create one with "
                   "`hud models fork <base-model>` and pass --model <slug>.")
             return
-        backend = HudBackend(args.model, max_steps=args.max_steps)
+        backend = (HudTeamBackend(args.model, max_steps=max(args.max_steps, 120))
+                   if args.multiagent else HudBackend(args.model, max_steps=args.max_steps))
     else:
-        backend = MockBackend()
+        backend = MockTeamBackend() if args.multiagent else MockBackend()
 
     asyncio.run(rl_loop(
         backend,
         train_seeds=train_seeds, eval_seeds=eval_seeds,
         steps=args.steps, group_size=args.group_size, lr=args.lr,
-        loss_fn=args.loss, temperature=args.temperature, out_dir=args.out))
+        loss_fn=args.loss, temperature=args.temperature, out_dir=out_dir,
+        references=references))
 
 
 if __name__ == "__main__":
