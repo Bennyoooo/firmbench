@@ -1,0 +1,30 @@
+[project]
+name = "firmbench"
+version = "0.1.0"
+description = "FirmBench: market-discovery RL environment for autonomous business agents (HUD v6)"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "hud-python>=0.6.5",
+    "fastmcp>=3,<4",
+    "openai>=1.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hud]
+image = "firmbench:dev"
+
+[tool.hatch.build]
+only-packages = false
+include = ["sim.py", "hud_env.py", "hud_tasks.py"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

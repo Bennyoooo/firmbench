@@ -1,75 +1,77 @@
 # FirmBench
 
-Project planning for the **HUD Frontier/RSI RL Environments Hackathon** (HUD W25 x YC).
-Goal: a verifiable RL environment for **agentic collaboration** — a team of agents runs
-a business together, graded automatically by profit.
+A verifiable RL environment for **autonomous business agents** — built for the
+**HUD Frontier/RSI RL Environments Hackathon** (HUD W25 x YC).
 
-## Chosen design
+One agent runs a simulated firm: it must reverse-engineer a hidden demand structure
+in a numeric user population by running experiments, then build the right product,
+market it to the right people, and price it right. **Reward = profit**, graded on
+secret held-out users the agent never saw feedback from.
 
-- **[PLAN-market-discovery.md](./PLAN-market-discovery.md)** — *Market-discovery firm
-  (single-agent).* One agent must reverse-engineer a hidden demand structure in a numeric
-  user population (via experiments), then build + market + price the right product. **The
-  LLM judge is a translator, not a grader** — it turns artifacts (ad copy, specs) into
-  parameters that drive a deterministic market. **Reward = profit.** Primary diagnostic:
-  *discovery efficiency* (regret vs a computable oracle). Multi-agent + *coordination tax*
-  = future stretch.
-
-## Earlier candidate (kept for reference)
-
-- **[PLAN-original-regret.md](./PLAN-original-regret.md)** — first version:
-  collaborative agent-firm on a retail/vending sim with pure-numeric levers and
-  regret-vs-optimal reward. Cleanest verifiable signal; superseded by the
-  market-discovery design, which keeps the regret guarantee *and* adds realistic
-  artifact-driven market dynamics.
-
-All versions share the same core machinery: a deterministic simulator + partial-
-observability agent roles + computable reference baselines.
-
-## Code
-
-- **[sim.py](./sim.py)** — Phase 1: the deterministic market-discovery simulation core
-  (pure stdlib, no deps). Contains `generate_world`, the gym-like `FirmEnv`
-  (`reset`/`step`, reward = round profit), an `OraclePolicy` reference, a `NaivePolicy`
-  floor, and a `ScriptedExperimenter` that probes demand → discovers the hidden
-  pain→feature mapping → exploits.
-
-Run the learnability check:
+## Quick Start (HUD)
 
 ```bash
-python3 sim.py
+# Install
+pip install hud-python fastmcp openai
+# or: uv sync
+
+# Run against Claude (or any HUD-supported model)
+cp .env.example .env   # fill in HUD_API_KEY
+hud eval hud_tasks.py claude --task-ids market_discovery_seed42 -y --max-steps 30
+
+# Deploy as a hosted environment
+hud deploy .
 ```
 
-Expected shape (means over seeds): **naive loses money << scripted experimenter <=
-oracle** — i.e. the environment is learnable and specifically rewards experimentation,
-not spam or luck.
-
-- **[agent.py](./agent.py)** — Phase 2: single-agent LLM harness. Drives `FirmEnv` with
-  structured-JSON actions (robust across cheap open models) via the Fireworks
-  OpenAI-compatible API. Same `.reset()/.act()` interface as the policies, so it reuses
-  the runner + oracle. Falls back to the scripted baseline if no key is set (wiring check).
-
-Run the LLM agent (cheap Fireworks model):
+## Quick Start (standalone, no HUD)
 
 ```bash
-pip install -r requirements.txt
+# Learnability check (no deps, no keys)
+python3 sim.py
+
+# Full pipeline: eval baselines → REINFORCE training → re-eval
+python3 run.py
+
+# LLM agent (needs Fireworks key)
+pip install openai
 export FIREWORKS_API_KEY=...
-export FIREWORKS_MODEL=accounts/fireworks/models/llama-v3p1-8b-instruct   # optional
 python3 agent.py
 ```
 
-- **[run.py](./run.py)** — Merged pipeline: verifier (secret held-out users + cheat
-  tripwires, ported from rl-experiments + autonomous-businesses-template), head-to-head
-  evaluation (all policies on the same held-out worlds), and REINFORCE training loop
-  (learns probe-vs-exploit from verifier reward).
+## Layout
 
-Run the full pipeline (eval baselines → train → re-eval):
-
-```bash
-python3 run.py
+```
+sim.py          deterministic market sim: generate_world, FirmEnv, oracle/naive/scripted
+agent.py        LLM agent harness (Fireworks, structured-JSON actions)
+run.py          verifier (secret held-out + tripwires) + head-to-head eval + REINFORCE
+hud_env.py      HUD v6 environment: MCP tools + verifier grading
+hud_tasks.py    HUD task definitions (3 seeds)
+Dockerfile.hud  deployable image
 ```
 
-Expected: naive loses money + gets flagged; scripted earns well + 0 flags; RL trains
-and earns above naive; oracle sets the ceiling. The verifier catches erratic/dishonest
-policies via the tripwire.
+## How it works
 
-Next: leaderboard over several models/seeds, then Phase 3 (NL artifact translators).
+**The hidden world** (randomized per episode): 8 pain points, 8 features, a hidden
+`solves: pain → feature` mapping, and 5,000 numeric users with skewed pain popularity
+and varying willingness-to-pay.
+
+**The agent's tools** (via MCP):
+- `probe_market(target_pains, spend)` — cheap discovery campaign → returns diagnostics
+- `build_feature(feature_id)` — build a feature ($300)
+- `set_price(price)` — set the product price
+- `run_campaign(target_pains, spend)` — full marketing push
+- `get_state()` — current round, cash, price, built features
+- `end_round()` — commit actions, advance to next round
+
+**Grading** (deterministic, no LLM judge): 20% of users are held out — the agent never
+gets campaign results from them. On episode end, the verifier replays every action on
+those users and computes true held-out profit. A cheat tripwire flags policies whose
+visible profit diverges from held-out profit.
+
+**What the agent must learn:** the pain popularity distribution (biggest needs), the
+pain→feature mapping (build the right things), and price elasticity. All via experiments.
+
+## Design docs
+
+- **[PLAN-market-discovery.md](./PLAN-market-discovery.md)** — full design spec
+- **[PLAN-original-regret.md](./PLAN-original-regret.md)** — earlier candidate (reference)
