@@ -12,6 +12,10 @@ Tools are served over MCP. The agent interacts via tool calls each round:
   get_state()                        — current firm state
   end_round()                        — advance to the next round
 
+All campaign/build tools accept optional NL artifact params (ad_copy, spec).
+When provided, artifacts are scored via the translator and rendered as HTML.
+When omitted, the structured fast path runs (craft=1.0, quality=1.0).
+
 Grading is deterministic: the verifier replays the agent's actions on a secret
 20% of the user population that the agent never saw feedback from.
 """
@@ -20,9 +24,11 @@ import asyncio
 import contextlib
 import json
 import logging
+import os
 import socket
 import sys
 from collections.abc import AsyncGenerator
+from pathlib import Path
 from typing import Any
 
 from hud import Environment
@@ -30,6 +36,8 @@ from hud.capabilities import Capability
 from hud.graders import EvaluationResult
 
 from sim import Config, generate_world, FirmEnv, sigmoid
+from scorer import ScoreConfig, score_ad_copy, score_feature_spec
+from renderer import render_ad_card, render_feature_page
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO,
                     format="[%(levelname)s] %(name)s | %(message)s")
@@ -48,6 +56,8 @@ _ROUND_ACTIONS = []          # per-round action log for verifier replay
 _CURRENT_ROUND_ACTION = {}   # accumulates within a round
 _HOLDOUT_FRAC = 0.2
 _EPISODE_SEED = 42
+_ARTIFACTS_DIR = None        # set per-episode: artifacts/{seed}/
+_SCORE_CFG = None            # scorer config (fast_mode unless env vars set)
 
 # ── verifier (replays on held-out users) ─────────────────────────────
 
@@ -58,6 +68,8 @@ def _split_users(world):
 
 
 def _replay_on_holdout(world, holdout_indices, action_log):
+    """Replay the full action log on held-out users. Uses craft/quality from the
+    action log when available (NL mode); defaults to 1.0 (structured mode)."""
     cfg = world.cfg
     ho_by_pain = {p: [] for p in range(cfg.n_pains)}
     for idx in holdout_indices:
@@ -69,12 +81,14 @@ def _replay_on_holdout(world, holdout_indices, action_log):
     for entry in action_log:
         f = entry.get("build")
         if f is not None:
-            built[f] = 1.0
+            quality = entry.get("quality", 1.0)
+            built[f] = quality
         price = entry["price"]
         round_revenue = 0.0
         round_spend = 0.0
         for camp in entry.get("campaigns", []):
             target = set(camp["target"])
+            craft = camp.get("craft", 1.0)
             spend = camp["spend"] * _HOLDOUT_FRAC
             round_spend += spend
             pool = set()
@@ -87,6 +101,7 @@ def _replay_on_holdout(world, holdout_indices, action_log):
             for idx in reached:
                 u = world.users[idx]
                 resonance = len(target & u.pains) / len(u.pains) if u.pains else 0.0
+                p_try = craft * resonance
                 ff = 0.0
                 if u.pains:
                     for p in u.pains:
@@ -95,7 +110,7 @@ def _replay_on_holdout(world, holdout_indices, action_log):
                             ff += built[fe]
                     ff /= len(u.pains)
                 p_buy = sigmoid(cfg.alpha * ff + cfg.beta * (u.wtp - price) / u.wtp - cfg.gamma)
-                purchases += resonance * p_buy
+                purchases += p_try * p_buy
             round_revenue += purchases * price
         build_cost = cfg.build_cost * _HOLDOUT_FRAC if f is not None else 0.0
         total_profit += round_revenue - round_spend - build_cost
@@ -112,8 +127,27 @@ def _grade_episode():
     reward = holdout_profit
     if flagged:
         reward -= 0.3 * abs(holdout_profit)
-    # normalize to [0, 1] roughly (oracle holdout profit ~ 25k)
     normalized = max(0.0, min(1.0, reward / 30000.0))
+
+    # write manifest if artifacts dir exists
+    if _ARTIFACTS_DIR:
+        manifest = {
+            "seed": _EPISODE_SEED,
+            "rounds": len(_ROUND_ACTIONS),
+            "final_reward": round(normalized, 4),
+            "holdout_profit": round(holdout_profit, 2),
+            "reported_profit": round(reported, 2),
+            "flagged": flagged,
+            "pain_names": _WORLD.pain_names,
+            "feature_names": _WORLD.feature_names,
+            "actions": _ROUND_ACTIONS,
+        }
+        manifest_path = os.path.join(_ARTIFACTS_DIR, "manifest.json")
+        os.makedirs(_ARTIFACTS_DIR, exist_ok=True)
+        Path(manifest_path).write_text(json.dumps(manifest, indent=2, default=_json_default),
+                                        encoding="utf-8")
+        logger.info("Manifest written to %s", manifest_path)
+
     return normalized, {
         "holdout_profit": round(holdout_profit, 2),
         "reported_profit": round(reported, 2),
@@ -121,6 +155,12 @@ def _grade_episode():
         "flagged": flagged,
         "raw_reward": round(reward, 2),
     }
+
+
+def _json_default(obj):
+    if isinstance(obj, set):
+        return sorted(obj)
+    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
 
 # ── tools (served over MCP) ─────────────────────────────────────────
@@ -131,36 +171,125 @@ def _ensure_round_action():
         _CURRENT_ROUND_ACTION = {"build": None, "price": _ENV.price, "campaigns": []}
 
 
-async def probe_market(target_pains: list[int], spend: float) -> dict[str, Any]:
+def _campaign_artifact_path(campaign_idx: int) -> str:
+    if not _ARTIFACTS_DIR:
+        return None
+    return os.path.join(_ARTIFACTS_DIR,
+                        f"round_{_ENV.round:02d}",
+                        f"campaign_{campaign_idx}",
+                        "ad_card.html")
+
+
+def _feature_artifact_path(feature_id: int) -> str:
+    if not _ARTIFACTS_DIR:
+        return None
+    return os.path.join(_ARTIFACTS_DIR,
+                        f"round_{_ENV.round:02d}",
+                        f"feature_{feature_id}",
+                        "feature_page.html")
+
+
+async def probe_market(target_pains: list[int], spend: float,
+                       ad_copy: str = None) -> dict[str, Any]:
     """Run a cheap discovery campaign to learn about demand. Returns audience size,
     impressions, tries, purchases, and revenue for the targeted pain points.
 
     Args:
         target_pains: list of pain point IDs (0-7) to target.
         spend: dollars to spend on this probe.
+        ad_copy: optional ad copy text (headline | body | CTA). When provided,
+                 the copy is scored for quality and targeting is extracted from it.
     """
     _ensure_round_action()
-    target = set(target_pains)
-    _CURRENT_ROUND_ACTION["campaigns"].append({"target": sorted(target), "spend": float(spend)})
+
+    craft = 1.0
+    camp_entry = {"spend": float(spend)}
+
+    if ad_copy and _WORLD:
+        scored = score_ad_copy(ad_copy, _WORLD, _SCORE_CFG)
+        craft = scored["craft"]
+        nl_targets = scored["target_pains"]
+        # NL-extracted targeting supplements the explicit target_pains
+        target = set(target_pains) | nl_targets if target_pains else nl_targets
+        camp_entry["ad_copy"] = ad_copy
+        camp_entry["craft"] = craft
+        camp_entry["nl_targets"] = sorted(nl_targets)
+
+        # render the ad card
+        camp_idx = len(_CURRENT_ROUND_ACTION.get("campaigns", []))
+        art_path = _campaign_artifact_path(camp_idx)
+        if art_path and _WORLD.pain_names:
+            parts = ad_copy.split("|", 2)
+            headline = parts[0].strip() if len(parts) > 0 else ad_copy[:60]
+            body = parts[1].strip() if len(parts) > 1 else ""
+            cta = parts[2].strip() if len(parts) > 2 else "Learn More"
+            render_ad_card(headline, body, cta, target,
+                           _WORLD.pain_names, craft, float(spend), art_path)
+            camp_entry["artifact_path"] = art_path
+    else:
+        target = set(target_pains)
+
+    camp_entry["target"] = sorted(target)
+    _CURRENT_ROUND_ACTION["campaigns"].append(camp_entry)
     result = _ENV._run_campaign(target, float(spend))
-    return {k: v for k, v in result.items() if k != "spend"}
+    out = {k: v for k, v in result.items() if k != "spend"}
+    if craft != 1.0:
+        out["craft_score"] = craft
+    return out
 
 
-async def build_feature(feature_id: int) -> dict[str, Any]:
+async def build_feature(feature_id: int = None,
+                        spec: str = None) -> dict[str, Any]:
     """Build a product feature (costs $300). Each feature potentially solves one
     customer pain point, but the mapping is hidden — you must experiment to discover it.
 
     Args:
-        feature_id: which feature to build (0-7).
+        feature_id: which feature to build (0-7). If spec is provided and feature_id
+                    is omitted, the feature is identified from the spec text.
+        spec: optional feature specification text. When provided, the spec is scored
+              for quality which affects how well the feature works.
     """
     _ensure_round_action()
     cfg = _CFG
+    quality = 1.0
+
+    if spec and _WORLD:
+        scored = score_feature_spec(spec, _WORLD, _SCORE_CFG)
+        if feature_id is None:
+            feature_id = scored["feature_id"]
+        quality = scored["quality"]
+        _CURRENT_ROUND_ACTION["spec"] = spec
+        _CURRENT_ROUND_ACTION["quality"] = quality
+
+        # render the feature page
+        art_path = _feature_artifact_path(feature_id)
+        if art_path and _WORLD.feature_names:
+            fname = _WORLD.feature_names[feature_id] if feature_id < len(_WORLD.feature_names) else f"Feature {feature_id}"
+            lines = spec.strip().split("\n")
+            tagline = lines[0][:100] if lines else fname
+            description = "\n".join(lines[1:])[:500] if len(lines) > 1 else spec[:500]
+            benefits = [l.strip("- •").strip() for l in lines if l.strip().startswith(("-", "•", "*"))][:5]
+            render_feature_page(fname, tagline, description,
+                                benefits or [spec[:80]], quality, feature_id, art_path)
+            _CURRENT_ROUND_ACTION["feature_artifact_path"] = art_path
+
+    if feature_id is None:
+        return {"success": False, "reason": "feature_id is required (or provide a spec)"}
     if feature_id in _ENV.built:
         return {"success": False, "reason": "already built"}
     if _ENV.cash < cfg.build_cost:
         return {"success": False, "reason": f"not enough cash (have ${_ENV.cash:.0f}, need ${cfg.build_cost:.0f})"}
+
     _CURRENT_ROUND_ACTION["build"] = int(feature_id)
-    return {"success": True, "feature_id": feature_id, "cost": cfg.build_cost}
+    if quality != 1.0:
+        _CURRENT_ROUND_ACTION["quality"] = quality
+
+    result = {"success": True, "feature_id": feature_id, "cost": cfg.build_cost}
+    if _WORLD and feature_id < len(_WORLD.feature_names):
+        result["feature_name"] = _WORLD.feature_names[feature_id]
+    if quality != 1.0:
+        result["quality_score"] = quality
+    return result
 
 
 async def set_price(price: float) -> dict[str, Any]:
@@ -175,20 +304,23 @@ async def set_price(price: float) -> dict[str, Any]:
     return {"price_set": price}
 
 
-async def run_campaign(target_pains: list[int], spend: float) -> dict[str, Any]:
+async def run_campaign(target_pains: list[int], spend: float,
+                       ad_copy: str = None) -> dict[str, Any]:
     """Run a full marketing campaign. Like probe_market but intended for exploitation
     (higher spend). Returns audience, impressions, tries, purchases, and revenue.
 
     Args:
         target_pains: list of pain point IDs to target.
         spend: dollars to spend.
+        ad_copy: optional ad copy text (headline | body | CTA).
     """
-    return await probe_market(target_pains, spend)
+    return await probe_market(target_pains, spend, ad_copy=ad_copy)
 
 
 async def get_state() -> dict[str, Any]:
-    """Get your current firm state: round, cash, price, built features."""
-    return {
+    """Get your current firm state: round, cash, price, built features, and
+    the names of all pains and features in this market."""
+    state = {
         "round": _ENV.round,
         "horizon": _CFG.horizon,
         "cash": round(_ENV.cash, 2),
@@ -196,6 +328,10 @@ async def get_state() -> dict[str, Any]:
         "built_features": sorted(_ENV.built.keys()),
         "done": _ENV.done,
     }
+    if _WORLD and _WORLD.pain_names:
+        state["pain_names"] = {i: n for i, n in enumerate(_WORLD.pain_names)}
+        state["feature_names"] = {i: n for i, n in enumerate(_WORLD.feature_names)}
+    return state
 
 
 async def end_round() -> dict[str, Any]:
@@ -208,12 +344,20 @@ async def end_round() -> dict[str, Any]:
     action = _CURRENT_ROUND_ACTION
     _ROUND_ACTIONS.append(action)
 
+    # Apply quality to the build if NL mode was used
+    quality = action.get("quality", 1.0)
+
     obs, profit, done, _ = _ENV.step({
         "build": action.get("build"),
         "price": action.get("price", _ENV.price),
         "campaigns": [{"target": set(c["target"]), "spend": c["spend"]}
                       for c in action.get("campaigns", [])],
     })
+
+    # Override the default quality=1.0 if NL scoring set a different value
+    if action.get("build") is not None and quality != 1.0:
+        _ENV.built[action["build"]] = quality
+
     _CURRENT_ROUND_ACTION = {}
     return {
         "round": obs["round"],
@@ -285,6 +429,7 @@ async def _down():
 async def market_discovery(prompt: str, seed: int = 42) -> AsyncGenerator[Any, Any]:
     """Run one episode of market discovery: experiment, build, market, price."""
     global _WORLD, _ENV, _ROUND_ACTIONS, _CURRENT_ROUND_ACTION, _EPISODE_SEED
+    global _ARTIFACTS_DIR, _SCORE_CFG
 
     _EPISODE_SEED = seed
     _WORLD = generate_world(seed, _CFG)
@@ -292,6 +437,11 @@ async def market_discovery(prompt: str, seed: int = 42) -> AsyncGenerator[Any, A
     _ENV.reset()
     _ROUND_ACTIONS = []
     _CURRENT_ROUND_ACTION = {}
+
+    # set up artifacts dir and scorer config
+    _ARTIFACTS_DIR = os.path.join("artifacts", str(seed))
+    has_key = bool(os.environ.get("FIREWORKS_API_KEY"))
+    _SCORE_CFG = ScoreConfig(fast_mode=not has_key)
 
     yield prompt
 

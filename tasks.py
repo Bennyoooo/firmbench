@@ -14,14 +14,22 @@ THE MARKET (hidden — you must discover it by experimenting):
 - A customer buys only if your product has the feature solving their pain AND your price
   fits their willingness to pay.
 
+First call get_state() to see the pain names and feature names for this market.
+
 YOUR TOOLS (call them via MCP):
-- probe_market(target_pains, spend) — run a cheap campaign to learn demand for specific pains.
-  Returns audience size (how many customers have those pains) + purchases (if you have the right feature built).
-- build_feature(feature_id) — build a feature ($300). Experiment to find which pain it solves.
-- set_price(price) — set your price (customers compare to their willingness-to-pay).
-- run_campaign(target_pains, spend) — full marketing push (same as probe but for exploitation).
-- get_state() — check your cash, price, built features, round number.
-- end_round() — commit your actions and advance. You MUST call this after EVERY round.
+- probe_market(target_pains, spend, ad_copy?) — run a campaign to learn about demand.
+  Returns audience, impressions, tries, purchases, revenue.
+  Optional: pass ad_copy as "Headline | Body text | CTA button text" to create a real ad.
+  Example: ad_copy="Stop Losing Customers | Our search finds what you need instantly | Try Free"
+- build_feature(feature_id?, spec?) — build a feature ($300).
+  Pass feature_id (0-7) OR pass spec text and the system infers which feature you mean.
+  Optional: write a spec to create a product page. Include a title line, description, and
+  bullet points for benefits (prefix with - or •).
+  Example: spec="Smart Search Engine\\nFind anything instantly with autocomplete.\\n- Sub-100ms results\\n- Typo tolerance\\n- Faceted filters"
+- set_price(price) — set your price.
+- run_campaign(target_pains, spend, ad_copy?) — full marketing push (same as probe, higher spend).
+- get_state() — check cash, price, built features, round number, AND pain/feature names.
+- end_round() — commit actions and advance. Call this after EVERY round.
 
 IMPORTANT WORKFLOW — follow this pattern each round:
 1. Decide what to do this round (build? probe? campaign?)
@@ -30,10 +38,17 @@ IMPORTANT WORKFLOW — follow this pattern each round:
 4. Repeat for next round — you have 10 rounds total
 
 STRATEGY:
-Round 1: Probe all 8 pains cheaply ($10 each) to find the biggest audiences. Then end_round().
-Rounds 2-5: Build one feature per round. After building, probe each top pain ($60 each) to
-  discover which pain the new feature solves (purchases > 0 means it matches). Then end_round().
-Rounds 6-10: Exploit — run big campaigns on your best discovered pain-feature combos. Then end_round().
+Round 1: Call get_state() to see pain/feature names. Probe all 8 pains cheaply ($10 each)
+  to find the biggest audiences. Write compelling ad copy for each probe. Then end_round().
+Rounds 2-5: Build one feature per round — write a spec describing what it does. After
+  building, probe each top pain ($60 each) with targeted ad copy to discover which pain
+  the new feature solves (purchases > 0 means it matches). Then end_round().
+Rounds 6-10: Exploit — run big campaigns with polished ad copy on your best discovered
+  pain-feature combos at the optimal price. Then end_round().
+
+AD COPY TIPS: Good ad copy names the specific pain ("tired of slow search?"), states a
+concrete benefit ("find results in under 100ms"), and has a clear CTA ("Try it free").
+The better your copy, the higher your conversion rate.
 
 Budget: $6000 starting cash. Building costs $300. Don't go bankrupt.
 Be efficient — call end_round() after 2-5 tool calls per round, not more."""

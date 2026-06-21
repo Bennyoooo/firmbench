@@ -26,7 +26,7 @@ from sim import (Config, generate_world, FirmEnv, OraclePolicy, ScriptedExperime
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 log = logging.getLogger("firmbench.agent")
 
-DEFAULT_MODEL = "accounts/fireworks/models/llama-v3p1-8b-instruct"
+DEFAULT_MODEL = "accounts/fireworks/models/glm-5p1"
 FIREWORKS_BASE_URL = "https://api.fireworks.ai/inference/v1"
 
 
@@ -136,7 +136,8 @@ def validate_action(raw, cfg: Config) -> dict:
 # ----------------------------- the agent -----------------------------
 
 class FireworksAgent:
-    def __init__(self, cfg: Config, model: str = None, temperature: float = 0.3):
+    def __init__(self, cfg: Config, model: str = None, temperature: float = 0.3,
+                 max_tokens: int = 2048):
         from openai import OpenAI  # lazy import so sim.py stays dependency-free
         api_key = os.environ.get("FIREWORKS_API_KEY")
         if not api_key:
@@ -145,9 +146,13 @@ class FireworksAgent:
         self.model = model or os.environ.get("FIREWORKS_MODEL", DEFAULT_MODEL)
         self.cfg = cfg
         self.temperature = temperature
+        # Reasoning models (glm, deepseek) spend tokens thinking before the JSON
+        # action; 2048 leaves room so the ```json block isn't truncated to a no-op.
+        self.max_tokens = max_tokens
 
     def reset(self):
         self.history = []
+        self.last_record = None   # {"messages": [...]} for the most recent round (SFT export)
 
     def act(self, env, obs):
         msgs = [
@@ -157,11 +162,15 @@ class FireworksAgent:
         try:
             resp = self.client.chat.completions.create(
                 model=self.model, messages=msgs,
-                temperature=self.temperature, max_tokens=700)
+                temperature=self.temperature, max_tokens=self.max_tokens)
             text = resp.choices[0].message.content or ""
         except Exception as e:
             log.warning(f"LLM call failed ({e}); using safe no-op action")
+            self.last_record = None
             return {"build": None, "price": obs["price"], "campaigns": []}
+        # Record the exact (prompt, completion) so winning trajectories can be
+        # exported verbatim as supervised fine-tuning data (STaR / expert iteration).
+        self.last_record = {"messages": msgs + [{"role": "assistant", "content": text}]}
         action = validate_action(extract_json(text), self.cfg)
         self.history.append(
             f"  r{obs['round']}: built {action['build']}, price {action['price']:.0f}, "

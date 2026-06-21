@@ -47,10 +47,23 @@
 
 ### 🔲 Next
 
+- [x] **RFT harness** (`rft.py`) — rejection-sampling fine-tuning (expert iteration /
+  STaR): rollout → grade with verifier → keep best non-flagged positive trajectory
+  per world → export chat JSONL → Fireworks SFT (firectl) → re-eval. Offline
+  `--selftest` (mock model, no network) validates the whole machinery and shows the
+  curve bend: **−734 → 15,524** mean held-out reward, flags 5/8 → 0/8. The verifier
+  *curates the training set* — only profitable, non-cheating episodes become SFT data.
+- [~] **Real RFT run** (`rft.py --run`, `RFT_RUN.md`) — executed on Fireworks with
+  `glm-5p1` (only serverless model that trains+serves LoRA cheaply). Base eval
+  **−409.6** mean reward (loses money). 24 real rollouts → **cold start**: zero
+  winning trajectories (frontier models score ~0 here), so we bootstrap with 240
+  expert (`ScriptedExperimenter`) turns. Dataset uploaded to Fireworks (READY);
+  firectl installed + authed; SFT command validated. **Blocked on $50 training
+  credits** (new account is Tier 1; glm-5p1 needs B200/B300 quota). Adding credits
+  → one command finishes train→serve→eval. See `RFT_RUN.md`.
 - [ ] Run `hud eval` with Claude / frontier models on held-out seeds
 - [ ] Multi-model leaderboard (Claude / GPT / Gemini / Fireworks open)
 - [ ] Phase 3 — NL artifact layer (ad copy + spec → craft translator)
-- [ ] Real RFT training run (Fireworks, small open model, "the curve bends")
 - [ ] Multi-agent stretch (Builder/Marketer/Pricer/Coordinator + coordination tax)
 - [ ] Polish: replay viewer, failure-mode gallery, pitch deck
 
@@ -177,10 +190,13 @@ RL-native: success requires **explore→exploit of hidden latent structure**.
 
 - **Eval / leaderboard (current deliverable):** run frontier models on held-out seeds;
   report profit + discovery efficiency. Pure inference, no training.
-- **Training (stretch):** GRPO-style: sample world → K rollouts → reward=profit →
-  update toward best. Small open model on Fireworks. ~1000 episodes shows a signal.
-- **Proof-of-concept done:** 2-param REINFORCE (probe-vs-exploit) trains in seconds,
-  proves the env is trainable. Same shape as full RFT.
+- **Training (real, `rft.py`):** rejection-sampling fine-tuning (expert iteration /
+  STaR): sample world → N rollouts → grade with the held-out verifier → keep the best
+  non-flagged positive trajectory → SFT the model on those turns → re-eval. The verifier
+  is the reward *and* the data curator. Runs on Fireworks via `firectl`. Offline
+  `--selftest` (mock model) proves the loop end-to-end and bends the curve.
+- **Proof-of-concept done:** 2-param REINFORCE (probe-vs-exploit) in `run.py` trains in
+  seconds — the toy version that proved the env is trainable before the LLM RFT.
 
 ---
 
@@ -190,7 +206,8 @@ RL-native: success requires **explore→exploit of hidden latent structure**.
 |------|------|-----------|
 | `sim.py` | Deterministic sim core: `generate_world`, `FirmEnv`, oracle/naive/scripted | No |
 | `agent.py` | LLM agent harness (Fireworks, structured-JSON) | No |
-| `run.py` | Verifier + head-to-head eval + REINFORCE training | No |
+| `run.py` | Verifier + head-to-head eval + toy REINFORCE | No |
+| `rft.py` | Real RFT: rejection-sampling fine-tuning on Fireworks (+ offline selftest) | Run: yes / selftest: no |
 | `hud_env.py` | HUD v6 env: MCP tools + verifier grading | Yes |
 | `hud_tasks.py` | HUD task definitions (3 seeds) | Yes |
 | `Dockerfile.hud` | Deployable container | Yes |

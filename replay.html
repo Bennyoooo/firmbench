@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FirmBench Replay Viewer</title>
+<style>
+:root{--bg:#0a0b0f;--card:#13151c;--border:#1e2130;--text:#c8cad0;--dim:#6b7084;
+  --accent:#667eea;--green:#38ef7d;--red:#ef4444;--gold:#f59e0b}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--bg);color:var(--text);min-height:100vh;padding:20px}
+h1{font-size:24px;font-weight:700;color:#fff;margin-bottom:4px}
+.subtitle{color:var(--dim);font-size:13px;margin-bottom:20px}
+.controls{display:flex;gap:12px;align-items:center;margin-bottom:24px;flex-wrap:wrap}
+select,button{background:var(--card);color:var(--text);border:1px solid var(--border);
+  padding:8px 16px;border-radius:8px;font-size:13px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.round-nav{display:flex;gap:4px;align-items:center}
+.round-btn{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:12px;font-weight:600;padding:0}
+.round-btn.current{background:var(--accent);color:#fff;border-color:var(--accent)}
+.round-btn.past{border-color:var(--green);color:var(--green)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.panel-header{padding:14px 18px;border-bottom:1px solid var(--border);font-size:13px;
+  font-weight:600;color:#fff;display:flex;justify-content:space-between}
+.panel-body{padding:18px}
+.metric{display:flex;justify-content:space-between;padding:6px 0;
+  border-bottom:1px solid var(--border);font-size:13px}
+.metric:last-child{border:none}
+.metric-label{color:var(--dim)}
+.metric-value{font-weight:600;font-variant-numeric:tabular-nums}
+.positive{color:var(--green)}.negative{color:var(--red)}
+.artifact-frame{width:100%;border:none;border-radius:8px;min-height:300px;background:#0f1117}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;color:var(--dim);font-weight:500;padding:8px 6px;border-bottom:1px solid var(--border)}
+td{padding:8px 6px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
+.chart-container{height:200px;position:relative;padding:10px 0}
+canvas{width:100%!important;height:100%!important}
+.empty{text-align:center;color:var(--dim);padding:40px;font-size:14px}
+.tag{display:inline-block;font-size:10px;padding:2px 8px;border-radius:10px;margin:2px;
+  background:rgba(102,126,234,0.15);color:var(--accent)}
+.status-bar{display:flex;gap:16px;padding:12px 18px;background:var(--card);
+  border:1px solid var(--border);border-radius:12px;margin-bottom:16px;font-size:13px;flex-wrap:wrap}
+.status-item{display:flex;gap:6px;align-items:center}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.dot-green{background:var(--green)}.dot-red{background:var(--red)}.dot-gold{background:var(--gold)}
+#loading{text-align:center;padding:80px;color:var(--dim)}
+</style>
+</head>
+<body>
+
+<h1>🏢 FirmBench Replay</h1>
+<p class="subtitle">Step through an agent's market-discovery episode</p>
+
+<div class="controls">
+  <label>Episode: <select id="seedSelect"><option>Loading...</option></select></label>
+  <div class="round-nav" id="roundNav"></div>
+  <button id="playBtn" onclick="togglePlay()">▶ Play</button>
+  <button onclick="prevRound()">← Prev</button>
+  <button onclick="nextRound()">Next →</button>
+</div>
+
+<div class="status-bar" id="statusBar"></div>
+
+<div class="grid">
+  <!-- Left: artifacts -->
+  <div>
+    <div class="panel" id="adPanel">
+      <div class="panel-header"><span>📢 Ad Campaign</span><span id="adCraft"></span></div>
+      <div class="panel-body" id="adContent"><div class="empty">No campaign this round</div></div>
+    </div>
+    <div class="panel" style="margin-top:16px" id="featurePanel">
+      <div class="panel-header"><span>🔧 Feature Built</span><span id="featureQuality"></span></div>
+      <div class="panel-body" id="featureContent"><div class="empty">No feature built this round</div></div>
+    </div>
+  </div>
+
+  <!-- Right: metrics -->
+  <div>
+    <div class="panel">
+      <div class="panel-header">📊 Campaign Results</div>
+      <div class="panel-body"><table id="campaignTable"><tbody></tbody></table></div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-header">📈 Profit Over Time</div>
+      <div class="panel-body">
+        <div class="chart-container"><canvas id="profitChart"></canvas></div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-header">🏦 Firm State</div>
+      <div class="panel-body" id="firmState"></div>
+    </div>
+  </div>
+</div>
+
+<div id="loading">
+  Serve this directory with <code>python3 -m http.server 8000</code><br>
+  then open <code>http://localhost:8000/replay.html</code>
+</div>
+
+<script>
+let manifest = null;
+let currentRound = 0;
+let playing = false;
+let playInterval = null;
+let profitHistory = [];
+
+async function loadSeeds() {
+  // Try to list available manifests
+  const seeds = [];
+  for (let s of [1,2,3,4,5,7,42,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,123]) {
+    try {
+      const r = await fetch(`artifacts/${s}/manifest.json`);
+      if (r.ok) seeds.push(s);
+    } catch(e) {}
+  }
+  const sel = document.getElementById('seedSelect');
+  sel.innerHTML = '';
+  if (seeds.length === 0) {
+    sel.innerHTML = '<option>No episodes found</option>';
+    return;
+  }
+  seeds.forEach(s => { const o = document.createElement('option'); o.value=s; o.textContent=`Seed ${s}`; sel.appendChild(o); });
+  sel.onchange = () => loadEpisode(parseInt(sel.value));
+  loadEpisode(seeds[0]);
+}
+
+async function loadEpisode(seed) {
+  document.getElementById('loading').style.display = 'none';
+  const r = await fetch(`artifacts/${seed}/manifest.json`);
+  manifest = await r.json();
+  currentRound = 0;
+  profitHistory = [];
+  buildRoundNav();
+  renderRound();
+}
+
+function buildRoundNav() {
+  const nav = document.getElementById('roundNav');
+  nav.innerHTML = '';
+  for (let i = 0; i < manifest.rounds; i++) {
+    const btn = document.createElement('button');
+    btn.className = 'round-btn' + (i === currentRound ? ' current' : (i < currentRound ? ' past' : ''));
+    btn.textContent = i + 1;
+    btn.onclick = () => { currentRound = i; renderRound(); };
+    nav.appendChild(btn);
+  }
+}
+
+function renderRound() {
+  buildRoundNav();
+  const action = manifest.actions[currentRound];
+  if (!action) return;
+
+  // Status bar
+  let cumProfit = 0;
+  for (let i = 0; i <= currentRound; i++) {
+    const a = manifest.actions[i];
+    if (a && a.campaigns) a.campaigns.forEach(c => { cumProfit += (c.revenue||0) - (c.spend||0); });
+    if (a && a.build !== null && a.build !== undefined) cumProfit -= 300;
+  }
+
+  const sb = document.getElementById('statusBar');
+  sb.innerHTML = `
+    <div class="status-item"><span class="dot dot-gold"></span> Round ${currentRound+1}/${manifest.rounds}</div>
+    <div class="status-item">💰 Cumulative: <span class="${cumProfit >= 0 ? 'positive' : 'negative'}">$${cumProfit.toFixed(0)}</span></div>
+    <div class="status-item">🎯 Reward: ${manifest.final_reward.toFixed(3)}</div>
+    <div class="status-item">${manifest.flagged ? '<span class="dot dot-red"></span> Flagged' : '<span class="dot dot-green"></span> Clean'}</div>
+  `;
+
+  // Ad panel
+  const adEl = document.getElementById('adContent');
+  const adCraft = document.getElementById('adCraft');
+  const camps = action.campaigns || [];
+  if (camps.length > 0 && camps.some(c => c.ad_copy || c.artifact_path)) {
+    const c = camps.find(c => c.ad_copy || c.artifact_path) || camps[0];
+    if (c.artifact_path) {
+      adEl.innerHTML = `<iframe class="artifact-frame" srcdoc="Loading..."></iframe>`;
+      fetch(c.artifact_path).then(r=>r.text()).then(html => {
+        adEl.querySelector('iframe').srcdoc = html;
+      }).catch(() => {
+        adEl.innerHTML = `<div class="empty">Ad card not found: ${c.artifact_path}</div>`;
+      });
+    } else if (c.ad_copy) {
+      adEl.innerHTML = `<div style="padding:8px;color:var(--dim);font-style:italic">${esc(c.ad_copy)}</div>`;
+    }
+    adCraft.textContent = c.craft ? `Craft: ${c.craft.toFixed(2)}` : '';
+  } else if (camps.length > 0) {
+    adEl.innerHTML = `<div class="empty">Structured mode (no ad copy)</div>`;
+    adCraft.textContent = 'craft=1.0';
+  } else {
+    adEl.innerHTML = `<div class="empty">No campaign this round</div>`;
+    adCraft.textContent = '';
+  }
+
+  // Feature panel
+  const featEl = document.getElementById('featureContent');
+  const featQ = document.getElementById('featureQuality');
+  if (action.build !== null && action.build !== undefined) {
+    const fid = action.build;
+    const fname = manifest.feature_names ? manifest.feature_names[fid] : `Feature ${fid}`;
+    if (action.feature_artifact_path) {
+      featEl.innerHTML = `<iframe class="artifact-frame" srcdoc="Loading..."></iframe>`;
+      fetch(action.feature_artifact_path).then(r=>r.text()).then(html => {
+        featEl.querySelector('iframe').srcdoc = html;
+      }).catch(() => {
+        featEl.innerHTML = `<div class="empty">Feature page not found</div>`;
+      });
+    } else {
+      featEl.innerHTML = `<div style="padding:12px"><strong>Built: ${esc(fname)}</strong> (ID: ${fid})</div>`;
+    }
+    featQ.textContent = action.quality ? `Quality: ${action.quality.toFixed(2)}` : 'quality=1.0';
+  } else {
+    featEl.innerHTML = `<div class="empty">No feature built this round</div>`;
+    featQ.textContent = '';
+  }
+
+  // Campaign results table
+  const tbody = document.querySelector('#campaignTable tbody');
+  tbody.innerHTML = '';
+  if (camps.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">No campaigns</td></tr>';
+  } else {
+    tbody.innerHTML = `<tr><th>Target</th><th>Spend</th><th>Audience</th><th>Tries</th><th>Purchases</th><th>Revenue</th></tr>`;
+    camps.forEach(c => {
+      const targets = (c.target||[]).map(p => {
+        const name = manifest.pain_names ? manifest.pain_names[p] : p;
+        return `<span class="tag">${name}</span>`;
+      }).join('');
+      tbody.innerHTML += `<tr>
+        <td>${targets}</td>
+        <td>$${(c.spend||0).toFixed(0)}</td>
+        <td>${c.audience||'—'}</td>
+        <td>${c.tries||'—'}</td>
+        <td>${c.purchases||'—'}</td>
+        <td class="${(c.revenue||0) > (c.spend||0) ? 'positive' : ''}">$${(c.revenue||0).toFixed(0)}</td>
+      </tr>`;
+    });
+  }
+
+  // Profit chart (simple bar chart via canvas)
+  profitHistory = [];
+  let running = 0;
+  for (let i = 0; i < manifest.rounds; i++) {
+    const a = manifest.actions[i];
+    let rp = 0;
+    if (a && a.campaigns) a.campaigns.forEach(c => { rp += (c.revenue||0) - (c.spend||0); });
+    if (a && a.build !== null && a.build !== undefined) rp -= 300;
+    running += rp;
+    profitHistory.push(running);
+  }
+  drawChart();
+
+  // Firm state
+  const fs = document.getElementById('firmState');
+  const builtFeatures = [];
+  for (let i = 0; i <= currentRound; i++) {
+    const a = manifest.actions[i];
+    if (a && a.build !== null && a.build !== undefined) builtFeatures.push(a.build);
+  }
+  fs.innerHTML = `
+    <div class="metric"><span class="metric-label">Price</span><span class="metric-value">$${action.price||50}</span></div>
+    <div class="metric"><span class="metric-label">Built Features</span><span class="metric-value">${builtFeatures.map(f => {
+      const n = manifest.feature_names ? manifest.feature_names[f] : f;
+      return `<span class="tag">${n}</span>`;
+    }).join(' ') || 'None'}</span></div>
+    <div class="metric"><span class="metric-label">Campaigns This Round</span><span class="metric-value">${camps.length}</span></div>
+  `;
+}
+
+function drawChart() {
+  const canvas = document.getElementById('profitChart');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = 200 * dpr;
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = 200;
+  ctx.clearRect(0, 0, W, H);
+
+  if (profitHistory.length === 0) return;
+  const maxV = Math.max(...profitHistory.map(Math.abs), 1);
+  const barW = Math.max(8, (W - 60) / profitHistory.length - 4);
+  const zeroY = H * 0.6;
+
+  // grid
+  ctx.strokeStyle = '#1e2130'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(40, zeroY); ctx.lineTo(W, zeroY); ctx.stroke();
+
+  profitHistory.forEach((v, i) => {
+    const x = 50 + i * (barW + 4);
+    const barH = (Math.abs(v) / maxV) * (H * 0.5);
+    const y = v >= 0 ? zeroY - barH : zeroY;
+    ctx.fillStyle = i <= currentRound ? (v >= 0 ? '#38ef7d' : '#ef4444') : '#1e2130';
+    ctx.beginPath();
+    ctx.roundRect(x, y, barW, barH, 3);
+    ctx.fill();
+    // round label
+    ctx.fillStyle = i === currentRound ? '#fff' : '#6b7084';
+    ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(`R${i+1}`, x + barW/2, H - 4);
+  });
+
+  // axis label
+  ctx.fillStyle = '#6b7084'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+  ctx.fillText('$0', 36, zeroY + 4);
+}
+
+function prevRound() { if (currentRound > 0) { currentRound--; renderRound(); } }
+function nextRound() { if (manifest && currentRound < manifest.rounds - 1) { currentRound++; renderRound(); } }
+function togglePlay() {
+  playing = !playing;
+  document.getElementById('playBtn').textContent = playing ? '⏸ Pause' : '▶ Play';
+  document.getElementById('playBtn').classList.toggle('active', playing);
+  if (playing) {
+    playInterval = setInterval(() => {
+      if (currentRound < manifest.rounds - 1) { currentRound++; renderRound(); }
+      else { togglePlay(); }
+    }, 1500);
+  } else {
+    clearInterval(playInterval);
+  }
+}
+
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+loadSeeds();
+</script>
+</body>
+</html>
