@@ -146,6 +146,50 @@ class MockModel:
         return action
 
 
+class ExpertRecorder:
+    """Wraps the ScriptedExperimenter and records each round as a chat turn whose
+    assistant message is the expert's action (as a ```json block) — matching exactly
+    what the LLM is asked to emit, including the running history notes.
+
+    Used to BOOTSTRAP the cold start: a weak base model loses money on every rollout,
+    so rejection sampling finds no winners. We first SFT on expert demonstrations of
+    disciplined discovery; later iterations can rejection-sample the model's own
+    (now profitable) rollouts. This is standard RFT practice (demonstrations -> RL).
+    """
+    def __init__(self, world, seed=0):
+        self.expert = ScriptedExperimenter(world, seed)
+        self.cfg = world.cfg
+
+    def reset(self):
+        self.expert.reset()
+        self.history = []
+        self.last_record = None
+
+    def act(self, env, obs):
+        action = self.expert.act(env, obs)
+        self.last_record = {"messages": [
+            {"role": "system", "content": system_prompt(self.cfg)},
+            {"role": "user", "content": format_obs(obs, self.cfg, self.history)},
+            {"role": "assistant", "content": action_to_completion(action)},
+        ]}
+        # mirror FireworksAgent's history note so user messages match inference time
+        self.history.append(
+            f"  r{obs['round']}: built {action['build']}, price {action['price']:.0f}, "
+            f"campaigns {[(sorted(c['target']), round(c['spend'])) for c in action['campaigns']]}")
+        return action
+
+
+def build_expert_dataset(seeds, cfg, verifier=None):
+    """Generate a chat-format SFT dataset from ScriptedExperimenter trajectories.
+    Pure-local (no API). Returns flat list of {"messages": [...]} per round."""
+    dataset = []
+    for s in seeds:
+        world = generate_world(s, cfg)
+        recs, _alog, _profit = play_episode(world, ExpertRecorder(world, s), cfg)
+        dataset.extend(recs)
+    return dataset
+
+
 def make_llm_agent(model, temperature):
     """Factory for the real Fireworks agent bound to a given model + temperature."""
     from agent import FireworksAgent
