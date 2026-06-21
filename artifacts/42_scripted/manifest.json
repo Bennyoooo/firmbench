@@ -1,10 +1,10 @@
 {
   "seed": 42,
   "rounds": 10,
-  "final_reward": 0.3709,
+  "final_reward": 0.0322,
   "profit": 51718.36,
-  "oracle_profit": 139435.96,
-  "disc_eff": 0.371,
+  "oracle_profit": 808620.34,
+  "disc_eff": 0.032,
   "flagged": false,
   "pain_names": [
     "poor search",
@@ -452,5 +452,7 @@
         }
       ]
     }
-  ]
+  ],
+  "theoretical_max": 1606942.11,
+  "pct_of_max": 0.032
 }

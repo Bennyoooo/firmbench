@@ -1,0 +1,37 @@
+# Deploy only the static site (index.html, replay.html, world.html, artifacts/).
+# This file overrides .gitignore for Vercel, so the gitignored artifacts/ ships.
+
+# Python / ML source + envs
+*.py
+__pycache__/
+.venv/
+venv/
+.pytest_cache/
+pyproject.toml
+requirements*.txt
+Dockerfile.hud
+.env*
+
+# Training / run outputs (not needed by the site)
+rft_out/
+rft_gcp_out/
+rft_hud_out/
+rft_hud_out_qwen8b/
+rft_hud_out_qwen30b/
+rl_grpo_out/
+grpo/
+artifacts_iter1_backup/
+artifacts_iter2_phase_a_demo/
+
+# Logs and docs
+*.log
+*.md
+docs/
+tests/
+
+# Tooling / meta
+.git/
+.github/
+.hud/
+.hud_eval.toml
+.claude/

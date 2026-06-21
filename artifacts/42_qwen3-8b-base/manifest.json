@@ -3,7 +3,7 @@
   "rounds": 10,
   "final_reward": 0.0,
   "profit": 0.0,
-  "oracle_profit": 139435.96,
+  "oracle_profit": 808620.34,
   "disc_eff": 0.0,
   "flagged": false,
   "pain_names": [
@@ -77,5 +77,7 @@
       "price": 50.0,
       "campaigns": []
     }
-  ]
+  ],
+  "theoretical_max": 1606942.11,
+  "pct_of_max": 0.0
 }
