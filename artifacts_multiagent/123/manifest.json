@@ -1,0 +1,718 @@
+{
+  "seed": 123,
+  "final_reward": 0.0431,
+  "pain_names": [
+    "poor mobile experience",
+    "billing errors",
+    "slow onboarding",
+    "difficult migration",
+    "no collaboration",
+    "confusing permissions",
+    "data export limitations",
+    "complex pricing"
+  ],
+  "feature_names": [
+    "team workspace",
+    "payment dashboard",
+    "data exporter",
+    "CDN accelerator",
+    "plan configurator",
+    "migration toolkit",
+    "API connector",
+    "quick-start wizard"
+  ],
+  "actions": [
+    {
+      "build": null,
+      "price": 50.0,
+      "campaigns": [
+        {
+          "target": [
+            0
+          ],
+          "spend": 10.0,
+          "channel": 0,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            0
+          ],
+          "spend": 10.0,
+          "channel": 1,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            0
+          ],
+          "spend": 10.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            1
+          ],
+          "spend": 10.0,
+          "channel": 0,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            1
+          ],
+          "spend": 10.0,
+          "channel": 1,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            1
+          ],
+          "spend": 10.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            2
+          ],
+          "spend": 10.0,
+          "channel": 0,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            2
+          ],
+          "spend": 10.0,
+          "channel": 1,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            2
+          ],
+          "spend": 10.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            3
+          ],
+          "spend": 10.0,
+          "channel": 0,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            3
+          ],
+          "spend": 10.0,
+          "channel": 1,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            3
+          ],
+          "spend": 10.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            4
+          ],
+          "spend": 10.0,
+          "channel": 0,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            4
+          ],
+          "spend": 10.0,
+          "channel": 1,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            4
+          ],
+          "spend": 10.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            5
+          ],
+          "spend": 10.0,
+          "channel": 0,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            5
+          ],
+          "spend": 10.0,
+          "channel": 1,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            5
+          ],
+          "spend": 10.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            6
+          ],
+          "spend": 10.0,
+          "channel": 0,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            6
+          ],
+          "spend": 10.0,
+          "channel": 1,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            6
+          ],
+          "spend": 10.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            7
+          ],
+          "spend": 10.0,
+          "channel": 0,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            7
+          ],
+          "spend": 10.0,
+          "channel": 1,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            7
+          ],
+          "spend": 10.0,
+          "channel": 2,
+          "craft": 1.0
+        }
+      ]
+    },
+    {
+      "build": 0,
+      "price": 50.0,
+      "campaigns": [
+        {
+          "target": [
+            1
+          ],
+          "spend": 60.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            6
+          ],
+          "spend": 60.0,
+          "channel": 0,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            5
+          ],
+          "spend": 60.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            7
+          ],
+          "spend": 60.0,
+          "channel": 1,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            3
+          ],
+          "spend": 60.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            2
+          ],
+          "spend": 60.0,
+          "channel": 0,
+          "craft": 1.0
+        }
+      ]
+    },
+    {
+      "build": 1,
+      "price": 40.0,
+      "campaigns": [
+        {
+          "target": [
+            1
+          ],
+          "spend": 60.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            6
+          ],
+          "spend": 60.0,
+          "channel": 0,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            5
+          ],
+          "spend": 60.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            7
+          ],
+          "spend": 60.0,
+          "channel": 1,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            3
+          ],
+          "spend": 60.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            2
+          ],
+          "spend": 60.0,
+          "channel": 0,
+          "craft": 1.0
+        }
+      ]
+    },
+    {
+      "build": 2,
+      "price": 40.0,
+      "campaigns": [
+        {
+          "target": [
+            1
+          ],
+          "spend": 60.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            6
+          ],
+          "spend": 60.0,
+          "channel": 0,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            5
+          ],
+          "spend": 60.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            3
+          ],
+          "spend": 60.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            2
+          ],
+          "spend": 60.0,
+          "channel": 0,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            4
+          ],
+          "spend": 60.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            7
+          ],
+          "spend": 6618.5560000000005,
+          "channel": 1,
+          "craft": 1.0
+        }
+      ]
+    },
+    {
+      "build": 3,
+      "price": 50.0,
+      "campaigns": [
+        {
+          "target": [
+            1
+          ],
+          "spend": 60.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            5
+          ],
+          "spend": 60.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            3
+          ],
+          "spend": 60.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            2
+          ],
+          "spend": 60.0,
+          "channel": 0,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            4
+          ],
+          "spend": 60.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            0
+          ],
+          "spend": 60.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            6,
+            7
+          ],
+          "spend": 6056.228,
+          "channel": 0,
+          "craft": 1.0
+        }
+      ]
+    },
+    {
+      "build": 4,
+      "price": 60.0,
+      "campaigns": [
+        {
+          "target": [
+            5
+          ],
+          "spend": 60.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            3
+          ],
+          "spend": 60.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            2
+          ],
+          "spend": 60.0,
+          "channel": 0,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            0,
+            1,
+            4,
+            6,
+            7
+          ],
+          "spend": 9004.788,
+          "channel": 2,
+          "craft": 1.0
+        }
+      ]
+    },
+    {
+      "build": 5,
+      "price": 60.0,
+      "campaigns": [
+        {
+          "target": [
+            5
+          ],
+          "spend": 60.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            3
+          ],
+          "spend": 60.0,
+          "channel": 2,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            2
+          ],
+          "spend": 60.0,
+          "channel": 0,
+          "craft": 1.0
+        },
+        {
+          "target": [
+            0,
+            1,
+            4,
+            6,
+            7
+          ],
+          "spend": 17710.688000000002,
+          "channel": 2,
+          "craft": 1.0
+        }
+      ]
+    },
+    {
+      "build": null,
+      "price": 60.0,
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "spend": 79394.31,
+          "channel": 2,
+          "craft": 1.0
+        }
+      ]
+    },
+    {
+      "build": null,
+      "price": 70.0,
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "spend": 73700.0,
+          "channel": 2,
+          "craft": 1.0
+        }
+      ]
+    },
+    {
+      "build": null,
+      "price": 70.0,
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "spend": 89021.83,
+          "channel": 2,
+          "craft": 1.0
+        }
+      ]
+    },
+    {
+      "build": null,
+      "price": 70.0,
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "spend": 82771.69,
+          "channel": 2,
+          "craft": 1.0
+        }
+      ]
+    },
+    {
+      "build": null,
+      "price": 70.0,
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "spend": 75788.14,
+          "channel": 2,
+          "craft": 1.0
+        }
+      ]
+    },
+    {
+      "build": null,
+      "price": 70.0,
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "spend": 68823.8,
+          "channel": 2,
+          "craft": 1.0
+        }
+      ]
+    },
+    {
+      "build": null,
+      "price": 70.0,
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "spend": 62217.6,
+          "channel": 2,
+          "craft": 1.0
+        }
+      ]
+    },
+    {
+      "build": null,
+      "price": 70.0,
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "spend": 56116.84,
+          "channel": 2,
+          "craft": 1.0
+        }
+      ]
+    },
+    {
+      "build": null,
+      "price": 70.0,
+      "campaigns": [
+        {
+          "target": [
+            0,
+            1,
+            2,
+            4,
+            6,
+            7
+          ],
+          "spend": 50571.46,
+          "channel": 2,
+          "craft": 1.0
+        }
+      ]
+    }
+  ],
+  "team_profit": 27580.3,
+  "oracle_profit": 639485.66,
+  "disc_eff": 0.043,
+  "coordination_tax": 611905.37,
+  "beat_oracle": false,
+  "rounds": 16
+}

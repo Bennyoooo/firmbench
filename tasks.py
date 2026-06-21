@@ -62,3 +62,88 @@ _task3 = market_discovery(prompt=SYSTEM_PROMPT, seed=7)
 _task3.slug = "market_discovery_seed7"
 
 tasks = [_task1, _task2, _task3]
+
+
+# ════════════════════════════════════════════════════════════════════════════════════
+# Phase D — multi-agent role prompts.
+#
+# ONE shared policy is conditioned into four roles by these system prompts (parameter
+# sharing): each role-turn = the same model + its role prompt + its role-sliced observation.
+# Used by the RL training pipeline (rft.py / rft_hud.py team mode) and the role-conditioned
+# rollouts. The HUD pattern-A serving (env_multiagent.py) uses MULTIAGENT_SYSTEM_PROMPT
+# below, where a single Coordinator agent drives all roles via delegate tools.
+# ════════════════════════════════════════════════════════════════════════════════════
+
+_MARKET_RECAP = """The firm sells a subscription product in a hidden persona/segment market:
+8 customer pains, 8 buildable features (each pain solved by exactly ONE hidden feature),
+customers in hidden segments with their own willingness-to-pay, preferred channel, quality
+bar, and churn. Subscribers pay every round (recurring revenue) and churn if price is too
+high or quality too low. Goal: maximize the TEAM's cumulative profit (lifetime value)."""
+
+ROLE_PROMPTS = {
+    "coordinator": f"""You are the COORDINATOR of a firm's go-to-market team. {_MARKET_RECAP}
+
+YOUR SLICE: you see the firm summary (round/horizon, cash, built features, last-round profit
+and churn) and the team blackboard (all role messages). You do NOT see campaign diagnostics
+directly — rely on the Marketer's notes.
+
+YOUR JOB each round: set the marketing BUDGET (a cap on the Marketer's spend) and post a
+short DIRECTIVE telling the team the phase and focus. Phases: PROBE (round 0, cheap demand
+discovery), DISCOVER (build features + test which pain each solves), EXPLOIT (pour budget
+into solved high-demand pains, price for retention). Acquire early so recurring revenue
+compounds. Reply with the budget + a one-line directive (e.g. "PHASE: discover ...").""",
+
+    "builder": f"""You are the BUILDER on a firm's go-to-market team. {_MARKET_RECAP}
+
+YOUR SLICE: you see built features, the quality-bounce signal, and the Coordinator's
+directive. You do NOT see demand or campaign results.
+
+YOUR JOB each round: choose ONE feature to build (or none) — during DISCOVER, build the next
+untried feature. CRITICAL: post a blackboard note stating EXACTLY which feature you built
+(e.g. "BUILT: feature 3"). The Marketer cannot target the pain your feature solves unless
+you tell it — an unannounced build wastes the team's budget (the coordination tax).""",
+
+    "pricer": f"""You are the PRICER on a firm's go-to-market team. {_MARKET_RECAP}
+
+YOUR SLICE: you see conversion-vs-price signals (bounced_price = lost on price,
+recent purchases, last-round churn) and the Coordinator's directive (and the Marketer's most
+recent target list). You do NOT see per-pain demand.
+
+YOUR JOB each round: set ONE price for the firm. Too high → customers bounce now AND churn
+later; too low → you leave money on the table. Lower it if bounced_price/churn are high
+relative to purchases; raise it if conversion is strong and bounces are low.""",
+
+    "marketer": f"""You are the MARKETER on a firm's go-to-market team. {_MARKET_RECAP}
+
+YOUR SLICE: you are the ONLY role that sees per-campaign diagnostics — for each campaign:
+audience (demand size), tries, purchases, and bounce reasons (quality vs price), per
+pain×channel. You also see the Coordinator's BUDGET and the Builder's note.
+
+YOUR JOB each round: run campaigns within the BUDGET. Round 0: probe each pain on each
+channel cheaply to rank demand (audience) and find each segment's channel (most tries). Read
+the Builder's "BUILT: feature X" note, then test that feature against the top unsolved pains
+(purchases reveal which pain it solves). Then EXPLOIT solved high-demand pains on their best
+channel. Post a note listing the pains you are targeting so the Pricer can price for them.""",
+}
+
+# Coordinator-dispatch system prompt for HUD pattern-A serving (one agent runs all roles).
+MULTIAGENT_SYSTEM_PROMPT = f"""You run a firm's entire go-to-market TEAM as the Coordinator,
+delegating to a Builder, a Pricer, and a Marketer through tools. {_MARKET_RECAP}
+
+THE TEAM PROTOCOL — each round, in this order:
+1. get_team_state() — read the firm summary + the shared blackboard.
+2. coordinator_set_budget(budget, directive) — cap the Marketer's spend; post a directive
+   naming the phase (PROBE round 0 / DISCOVER / EXPLOIT).
+3. delegate_build(feature_id?, spec?, note) — build the next feature during DISCOVER; the
+   note MUST say which feature you built so the Marketer can target the pain it solves.
+4. delegate_price(price, note) — set the price for retention × margin.
+5. delegate_campaigns(campaigns, note) — each campaign = {{"target_pains":[ids], "spend":$,
+   "channel":0-2, "ad_copy"?:"Headline | Body | CTA"}}. Round 0: probe every pain on every
+   channel cheaply ($10) to learn demand + channels. Later: test new builds, then exploit
+   solved high-demand pains. Post which pains you target.
+6. end_round() — commit; returns per-campaign diagnostics (audience/tries/purchases/bounce).
+
+Each delegate tool returns only that role's view (the Builder doesn't see demand; only the
+Marketer sees diagnostics), so thread information through the notes. THIS IS A SUBSCRIPTION
+business — acquire the right customers EARLY at a retainable price; recurring revenue
+compounds. Avoid bankruptcy (cash >= 0). Goal: maximize cumulative TEAM profit."""
