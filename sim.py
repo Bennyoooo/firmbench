@@ -368,8 +368,8 @@ class FirmEnv:
             pool.update(self.w.users_by_pain.get(p, []))
         pool = sorted(pool)
         if spend <= 0 or not target:
-            return {"target": sorted(target), "audience": len(pool), "impressions": 0,
-                    "tries": 0.0, "purchases": 0.0, "bounced_quality": 0.0,
+            return {"target": sorted(target), "channel": channel, "audience": len(pool),
+                    "impressions": 0, "tries": 0.0, "purchases": 0.0, "bounced_quality": 0.0,
                     "bounced_price": 0.0, "revenue": 0.0, "spend": spend}
         impressions = int(spend * cfg.impressions_per_dollar)
         reached = pool[:impressions]
@@ -403,7 +403,8 @@ class FirmEnv:
                 bounced_quality += p_try * (1.0 - gate)
                 bounced_price += p_try * gate * (1.0 - price_accept)
         revenue = purchases * self.price
-        return {"target": sorted(target), "audience": len(pool), "impressions": len(reached),
+        return {"target": sorted(target), "channel": channel, "audience": len(pool),
+                "impressions": len(reached),
                 "tries": round(tries, 2), "purchases": round(purchases, 2),
                 "bounced_quality": round(bounced_quality, 2),
                 "bounced_price": round(bounced_price, 2),
@@ -590,7 +591,8 @@ class OraclePolicy:
         price = best_price_for(self.w, built_map, target)
         reserve = self.w.cfg.build_cost if f is not None else 0.0
         spend = max(0.0, obs["cash"] - reserve)
-        channel = _best_channel(self.w, target)
+        chan_pain = max(target, key=lambda p: self.w.pain_popularity[p]) if target else self.top_pains[0]
+        channel = _best_channel(self.w, {chan_pain})   # best channel for the biggest targeted segment
         return {"build": f, "price": price,
                 "campaigns": [{"target": target, "spend": spend, "channel": channel}]}
 
@@ -606,10 +608,12 @@ class ScriptedExperimenter:
         self.rng = random.Random(seed + 13)
 
     def reset(self):
-        self.pain_demand = {}        # pain -> observed tries (popularity proxy)
+        self.pain_demand = {}        # pain -> audience (demand proxy, channel-free)
         self.solved = {}             # pain -> feature (discovered)
         self.tried_features = set()
-        self.phase = "probe"
+        self.best_channel = {}       # pain -> channel with the most observed tries
+        self._best_ch_tries = {}
+        self._last_built = None
 
     def act(self, env, obs):
         cfg = self.w.cfg
@@ -621,20 +625,30 @@ class ScriptedExperimenter:
             if len(tgt) == 1:
                 p = tgt[0]
                 if obs["round"] <= 1:
-                    self.pain_demand[p] = c["audience"]   # audience size = demand proxy
-                if c["purchases"] > 0.5:
-                    # the most recently built feature solves this pain
-                    if self._last_built is not None:
-                        self.solved[p] = self._last_built
+                    self.pain_demand[p] = c["audience"]   # audience = demand proxy (channel-free)
+                    ch = c.get("channel", 0)              # learn channel<->segment from tries
+                    if c["tries"] > self._best_ch_tries.get(p, -1.0):
+                        self._best_ch_tries[p] = c["tries"]
+                        self.best_channel[p] = ch
+                if c["purchases"] > 0.5 and self._last_built is not None:
+                    self.solved[p] = self._last_built     # the new feature solves this pain
         self._last_built = None
 
-        # Phase 1 (round 0): probe demand with cheap single-pain campaigns
+        def _ch(p):
+            return self.best_channel.get(p, 0)
+
+        # Phase 1 (round 0): probe demand; with channels, probe each pain x channel cheaply
         if obs["round"] == 0:
-            campaigns = [{"target": {p}, "spend": 10.0} for p in range(cfg.n_pains)]
+            if cfg.use_channels:
+                campaigns = [{"target": {p}, "spend": 10.0, "channel": ch}
+                             for p in range(cfg.n_pains) for ch in range(cfg.n_channels)]
+            else:
+                campaigns = [{"target": {p}, "spend": 10.0} for p in range(cfg.n_pains)]
             return {"build": None, "price": 50.0, "campaigns": campaigns}
 
         top_pains = sorted(self.pain_demand, key=self.pain_demand.get, reverse=True)
         unsolved_top = [p for p in top_pains if p not in self.solved]
+        top_solved = max(self.solved, key=lambda x: self.pain_demand.get(x, 0)) if self.solved else None
 
         # Phase 2: build a new feature and test it against unsolved top pains
         rounds_left = cfg.horizon - obs["round"]
@@ -647,28 +661,31 @@ class ScriptedExperimenter:
             if f is not None:
                 self.tried_features.add(f)
                 self._last_built = f
-                # test the new feature against the top unsolved pains by audience, each
+                # test the new feature against top unsolved pains, each on its best channel,
                 # separately so purchases attribute cleanly -> every build is informative
                 test_targets = unsolved_top[:6]
-                campaigns = [{"target": {p}, "spend": 60.0} for p in test_targets]
+                campaigns = [{"target": {p}, "spend": 60.0, "channel": _ch(p)} for p in test_targets]
                 # also keep earning on already-solved pains
                 if self.solved:
                     campaigns.append({"target": set(self.solved.keys()),
-                                      "spend": max(0.0, obs["cash"] * 0.4)})
+                                      "spend": max(0.0, obs["cash"] * 0.4),
+                                      "channel": _ch(top_solved)})
                 return {"build": f, "price": 50.0, "campaigns": campaigns}
 
-        # Phase 3: exploit solved popular pains
+        # Phase 3: exploit solved popular pains (on the top pain's best channel)
         if self.solved:
             target = set(self.solved.keys())
             built_map = {x: 1.0 for x in built}
             price = best_price_for(self.w, built_map, target)
             spend = max(0.0, obs["cash"])
-            return {"build": None, "price": price, "campaigns": [{"target": target, "spend": spend}]}
+            return {"build": None, "price": price,
+                    "campaigns": [{"target": target, "spend": spend, "channel": _ch(top_solved)}]}
 
         # fallback: nothing discovered, target best-demand pains broadly
         target = set(top_pains[:3]) if top_pains else {0, 1, 2}
+        ch = _ch(top_pains[0]) if top_pains else 0
         return {"build": None, "price": 50.0,
-                "campaigns": [{"target": target, "spend": min(500.0, obs["cash"])}]}
+                "campaigns": [{"target": target, "spend": min(500.0, obs["cash"]), "channel": ch}]}
 
 
 # ----------------------------- run helpers -----------------------------
