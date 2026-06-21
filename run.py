@@ -18,6 +18,7 @@ Key ideas ported:
     verifier reward. Same shape as the full RFT of an LLM student.
 """
 
+import argparse
 import math
 import random
 
@@ -242,9 +243,75 @@ def train_reinforce(train_seeds, cfg=None, iters=400, alpha=0.3, seed=0):
     return theta
 
 
+# ----------------------------- multi-agent head-to-head (Phase D) ----
+
+def evaluate_multiagent(test_seeds, cfg=None):
+    """Phase-D head-to-head on held-out seeds: single-agent ScriptedExperimenter vs the
+    coordinated ScriptedTeam vs the isolated NaiveTeam vs the full-info oracle ceiling.
+    Reports disc.eff (profit/oracle) and the coordination tax (oracle - team_profit).
+
+    The oracle is the SINGLE-agent OraclePolicy (no partial-obs barrier): a perfectly
+    coordinated team approaches it; the gap is the tax. The single-agent scripted bounds
+    the achievable-without-the-barrier side; the naive team bounds the no-comms side."""
+    from multiagent import ScriptedTeam, NaiveTeam, run_team_episode
+    cfg = cfg or Config.phase_a()
+
+    agg = {"oracle": [], "single": [], "scripted_team": [], "naive_team": []}
+    eff = {"single": [], "scripted_team": [], "naive_team": []}
+    for s in test_seeds:
+        w = generate_world(s, cfg)
+        oracle = run_episode(w, OraclePolicy(w))
+        single = run_episode(w, ScriptedExperimenter(w, s))
+        _, scr = run_team_episode(w, ScriptedTeam(w, s))
+        _, naive = run_team_episode(w, NaiveTeam(w, s))
+        agg["oracle"].append(oracle); agg["single"].append(single)
+        agg["scripted_team"].append(scr); agg["naive_team"].append(naive)
+        denom = oracle if oracle > 0 else 1.0
+        eff["single"].append(single / denom)
+        eff["scripted_team"].append(scr / denom)
+        eff["naive_team"].append(naive / denom)
+
+    n = len(test_seeds)
+    mean = {k: sum(v) / n for k, v in agg.items()}
+    meaneff = {k: sum(v) / n for k, v in eff.items()}
+
+    print("=" * 74)
+    print(f"FirmBench — Phase D multi-agent head-to-head ({n} held-out seeds, full market)")
+    print("=" * 74)
+    hdr = f"{'policy':<26}{'mean profit':>14}{'disc.eff':>10}{'coord tax':>12}"
+    print(hdr); print("-" * len(hdr))
+    rows = [
+        ("oracle (full-info)", mean["oracle"], 1.000, 0.0),
+        ("single-agent scripted", mean["single"], meaneff["single"], 1 - meaneff["single"]),
+        ("scripted-team (comms)", mean["scripted_team"], meaneff["scripted_team"], 1 - meaneff["scripted_team"]),
+        ("naive-team (no comms)", mean["naive_team"], meaneff["naive_team"], 1 - meaneff["naive_team"]),
+    ]
+    for name, prof, de, tax in rows:
+        print(f"{name:<26}{prof:>14.0f}{de:>10.3f}{tax:>11.1%}")
+    print("-" * len(hdr))
+    coord_gain = meaneff["scripted_team"] - meaneff["naive_team"]
+    print(f"VERDICT: coordination (blackboard messages) buys {coord_gain:+.1%} of the oracle "
+          f"(scripted-team {meaneff['scripted_team']:.3f} vs naive-team {meaneff['naive_team']:.3f}).")
+    gate = ("PASS" if mean["naive_team"] < mean["scripted_team"] <= mean["oracle"] else "FAIL")
+    print(f"         coordination gate: naive < scripted_team <= oracle -> {gate}")
+    print("=" * 74)
+    return {"mean": mean, "disc_eff": meaneff, "gate": gate}
+
+
 # ----------------------------- main ----------------------------------
 
 def main():
+    ap = argparse.ArgumentParser(description="FirmBench eval / training")
+    ap.add_argument("--multiagent", action="store_true",
+                    help="Phase D: team head-to-head (scripted vs naive vs oracle) + coordination tax")
+    ap.add_argument("--eval-seeds", type=int, default=10, help="held-out seed count")
+    args = ap.parse_args()
+
+    if args.multiagent:
+        test_seeds = list(range(100, 100 + args.eval_seeds))   # disjoint held-out
+        evaluate_multiagent(test_seeds, Config.phase_a())
+        return
+
     cfg = Config()
     verifier = Verifier()
 
