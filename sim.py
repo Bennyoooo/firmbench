@@ -36,6 +36,42 @@ class Config:
     wtp_sigma: float = 0.5
     price_grid: tuple = tuple(range(20, 121, 10))
 
+    # ── Phase A ablation flags (default OFF → v1 reproducible + clean baseline) ──
+    use_segments: bool = False
+    use_channels: bool = False
+    use_elasticity: bool = False
+    use_quality_bar: bool = False
+    use_retention: bool = False
+    # population / channel structure
+    n_segments: int = 5
+    n_channels: int = 3
+    channel_fit_off: float = 0.25      # reach multiplier on the wrong channel
+    # elasticity: per-segment beta mean + per-user noise (hybrid population)
+    elasticity_mu: float = 2.0
+    elasticity_sigma: float = 0.5
+    # quality_bar: per-segment min fulfilled-fraction to convert (soft gate)
+    quality_bar_mu: float = 0.3
+    quality_bar_sigma: float = 0.1
+    quality_gate_k: float = 8.0        # softness of the bar (higher = harder gate)
+    # retention / subscription
+    subscription: bool = True
+    churn_base: float = 0.10
+    churn_price_coef: float = 0.30     # churn rises when price > wtp
+    churn_quality_coef: float = 0.30   # churn rises when fulfilled < quality_bar
+
+    @classmethod
+    def phase_a(cls, scale_budget=True, **overrides):
+        """All Phase A latents ON. scale_budget scales horizon/cash with channels
+        (C2) so an ablation FAIL signals unobservability, not just running out of money."""
+        base = dict(use_segments=True, use_channels=True, use_elasticity=True,
+                    use_quality_bar=True, use_retention=True)
+        if scale_budget:
+            nch = overrides.get("n_channels", 3)
+            base["horizon"] = 10 + 2 * nch
+            base["starting_cash"] = 6000.0 * nch
+        base.update(overrides)
+        return cls(**base)
+
 
 def sigmoid(x: float) -> float:
     if x < -60:
