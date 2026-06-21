@@ -43,7 +43,7 @@ flags: `Config()` == exact v1; `Config.phase_a()` == full market.
 | `tasks.py` | HUD tasks (seeds 42/123/7) + `SYSTEM_PROMPT`. |
 
 ### Config (key fields)
-v1: `n_pains=8, n_features=8, n_users=5000, horizon=10, starting_cash=6000, build_cost=300,
+v1: `n_pains=8, n_features=8, n_users=500000, horizon=10, starting_cash=6000, build_cost=300,
 impressions_per_dollar=0.2, alpha=4, beta=2, gamma=3, wtp_mu=3.9, wtp_sigma=0.5,
 price_grid=range(20,121,10)`.
 Phase A flags (default **False**): `use_segments, use_channels, use_elasticity,

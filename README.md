@@ -123,7 +123,7 @@ Dockerfile.hud  deployable image
 ## How it works
 
 **The hidden world** (randomized per episode): 8 pain points, 8 features, a hidden
-`solves: pain → feature` mapping, and ~5,000 users drawn from hidden **segments**
+`solves: pain → feature` mapping, and ~500,000 users drawn from hidden **segments**
 (personas). Each segment clusters certain pains and has its own willingness-to-pay, price
 elasticity, preferred marketing **channel**, quality bar, and churn rate — with per-user
 noise on top (hybrid population). Every latent is behind a `Config` flag: `Config()` is

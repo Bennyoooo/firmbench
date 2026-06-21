@@ -130,8 +130,7 @@ const MODEL_NAMES = {
   'claude': 'Claude Sonnet 4.6', 'claude-opus-4-8': 'Claude Opus 4.8',
   'gemini': 'Gemini 3.5 Flash', 'deepseek-v4-0324': 'DeepSeek V4',
   'glm-5-1': 'GLM 5.1', '42': 'Latest Run',
-  'qwen3-8b-base': 'Qwen3-8B (base · epoch 0)', 'qwen3-8b-grpo-ep1': 'Qwen3-8B (GRPO · epoch 1)',
-  'qwen3-8b-grpo': 'Qwen3-8B (GRPO · epoch 2)',
+  'qwen3-8b-base': 'Qwen3-8B (base)', 'qwen3-8b-grpo': 'Qwen3-8B (GRPO-trained)',
   'oracle': 'Oracle (ceiling)', 'scripted': 'Scripted experimenter', 'naive': 'Naive'
 };
 const RANK_COLORS = ['#f59e0b','#a0a0a0','#cd7f32','#667eea','#667eea','#667eea','#667eea','#667eea'];
@@ -143,7 +142,7 @@ async function discoverModels() {
     '42_gpt-5-5', '42_gpt-5', '42_gpt-5-mini', '42_gpt-4o',
     '42_claude', '42_claude-opus-4-8', '42_gemini',
     '42_deepseek-v4-0324', '42_glm-5-1',
-    '42_oracle', '42_scripted', '42_naive',
+    '42_qwen3-8b-grpo', '42_qwen3-8b-base', '42_oracle', '42_scripted', '42_naive',
   ];
   // Also check artifacts/42 as "Latest Run"
   modelCandidates.unshift('42');
@@ -167,7 +166,7 @@ async function discoverModels() {
     } catch(e) {}
   }
 
-  // Filter out zero-round entries and duplicates, sort by reward
+  // Filter out zero-round entries, sort by reward
   allModels = allModels.filter(m => m.rounds > 0);
   allModels.sort((a, b) => b.reward - a.reward);
   renderLeaderboard();
@@ -182,15 +181,46 @@ function renderLeaderboard() {
   const el = document.getElementById('leaderboard');
   if (allModels.length <= 1) { el.innerHTML = ''; return; }
 
-  el.innerHTML = '<h3 style="font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">🏆 Leaderboard (click to view replay)</h3>' +
-    allModels.filter(m => m.reward > 0 || m.rounds > 0).map((m, i) => `
+  // Compute multi-seed averages
+  const SEEDS = [42, 123, 7, 99, 200];
+  const MODEL_KEYS = ['gpt-5-5','gpt-5','claude-opus-4-8','gemini','claude','gpt-5-mini'];
+  if (!window._avgLoaded) {
+    window._avgLoaded = true;
+    (async () => {
+      const avgData = {};
+      for (const mk of MODEL_KEYS) {
+        const rewards = [];
+        for (const s of SEEDS) {
+          try {
+            const r = await fetch(`artifacts/${s}_${mk}/manifest.json`);
+            if (!r.ok) continue;
+            const m = await r.json();
+            rewards.push(m.final_reward || 0);
+          } catch(e) {}
+        }
+        if (rewards.length > 0)
+          avgData[mk] = {avg: rewards.reduce((a,b)=>a+b,0)/rewards.length, n: rewards.length};
+      }
+      window._avgData = avgData;
+      renderLeaderboard();
+    })();
+  }
+  const avg = window._avgData || {};
+  const maxReward = Math.max(...allModels.map(m => m.reward), 0.001);
+
+  el.innerHTML = '<h3 style="font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">🏆 Leaderboard — Seed 42 (click to view replay)</h3>' +
+    allModels.filter(m => m.reward > 0 || m.rounds > 0).map((m, i) => {
+      const a = avg[m.key];
+      const avgText = a ? `<span style="color:var(--dim);font-size:11px;margin-left:8px">(5-seed avg: ${(a.avg*100).toFixed(1)}%)</span>` : '';
+      return `
       <div class="lb-row${m.dir === currentDir ? ' active' : ''}" onclick="loadModel('${m.dir}')">
         <div class="lb-rank" style="background:${RANK_COLORS[i] || 'var(--border)'}22;color:${RANK_COLORS[i] || 'var(--dim)'}">${i+1}</div>
-        <div class="lb-name">${esc(m.name)}</div>
+        <div class="lb-name">${esc(m.name)}${avgText}</div>
         <div class="lb-bar"><div class="lb-bar-fill" style="width:${Math.min(100, m.disc_eff*100)}%;background:${i===0?'var(--gold)':i===1?'var(--accent)':'var(--dim)'}"></div></div>
         <div class="lb-reward" style="color:${m.reward > 0 ? 'var(--green)' : 'var(--dim)'}">${(m.disc_eff*100).toFixed(1)}%</div>
         <div class="lb-profit">${m.profit > 0 ? '$'+m.profit.toLocaleString(undefined,{maximumFractionDigits:0}) : '—'}</div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
 }
 
 function populateModelSelect() {

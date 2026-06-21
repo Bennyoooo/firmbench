@@ -106,6 +106,37 @@ select{background:var(--card);color:var(--text);border:1px solid var(--border);p
 
 <div class="stat-row" id="topStats"></div>
 
+<div class="panel" style="margin-bottom:24px">
+  <div class="panel-header"><h3>🎮 The Agent's Action Space</h3></div>
+  <div class="panel-body">
+    <p style="font-size:13px;color:var(--dim);margin-bottom:16px">
+      Each round, the agent takes three kinds of actions against the hidden market above — then
+      observes only per-campaign diagnostics (audience reached, conversions, revenue). It must
+      <strong style="color:var(--text)">reverse-engineer demand from those signals</strong>, with no view of the ground truth.
+    </p>
+    <div class="grid grid-3">
+      <div class="segment-card">
+        <div class="segment-header"><span class="segment-name">🔧 Build a feature</span>
+          <span class="segment-badge" style="background:rgba(56,239,125,0.15);color:var(--green)">$300 / build</span></div>
+        <p style="font-size:12px;color:var(--dim)">Build one of the <strong style="color:var(--text)">buildable features</strong>. Each secretly solves a hidden customer pain — building the right one unlocks demand from the customers who have that pain.</p>
+      </div>
+      <div class="segment-card">
+        <div class="segment-header"><span class="segment-name">💰 Set the price</span>
+          <span class="segment-badge" style="background:rgba(245,158,11,0.15);color:var(--gold)">$20 – $120</span></div>
+        <p style="font-size:12px;color:var(--dim)">Choose the monthly subscription price. Too high prices out low-WTP segments; too low leaves money on the table. Price also drives <strong style="color:var(--text)">churn</strong> when it exceeds willingness-to-pay.</p>
+      </div>
+      <div class="segment-card">
+        <div class="segment-header"><span class="segment-name">📢 Run campaigns</span>
+          <span class="segment-badge" style="background:rgba(102,126,234,0.15);color:var(--accent)">target · channel · spend</span></div>
+        <p style="font-size:12px;color:var(--dim)">Launch ad campaigns, each picking <strong style="color:var(--text)">which pains to target</strong>, <strong style="color:var(--text)">which channel</strong> to run on, and how much to <strong style="color:var(--text)">spend</strong>. Wrong channel or wrong target wastes budget.</p>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--dim);margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <strong style="color:var(--text)">Reward = round profit</strong> (subscription revenue − ad spend − build cost), computed exactly by the sim — no LLM judge. The challenge is the discovery loop: experiment, read the diagnostics, and reallocate.
+    </p>
+  </div>
+</div>
+
 <div class="grid grid-2">
   <div class="panel">
     <div class="panel-header"><h3>🎯 Customer Pain Points (demand distribution)</h3></div>
@@ -393,7 +424,7 @@ function renderDiscovery() {
       const cls = found ? 'discovered' : 'missed';
       return `<div class="discovery-row ${cls}">
         <span style="width:20px">${found ? '✓' : '○'}</span>
-        <span style="flex:1">${m.pain_name} (${m.pain_popularity} users)</span>
+        <span style="flex:1">${m.pain_name} (${m.pain_popularity.toLocaleString()} users)</span>
         <span style="flex:1;text-align:right">${found ? m.feature_name : '—'}</span>
       </div>`;
     }).join('');
@@ -418,7 +449,7 @@ function renderPriceVsWtp() {
         <div class="price-label">Agent: $${agentPrice}</div>
       </div>
       <div class="histogram">${buckets.map(b =>
-        `<div class="hist-bar" style="height:${b.count/maxCount*100}%;background:${b.lo < agentPrice ? 'var(--green)' : 'var(--red)'}" title="$${b.lo}-${b.hi}: ${b.count}"></div>`
+        `<div class="hist-bar" style="height:${b.count/maxCount*100}%;background:${b.lo < agentPrice ? 'var(--green)' : 'var(--red)'}" title="$${b.lo}-${b.hi}: ${b.count.toLocaleString()}"></div>`
       ).join('')}</div>
       <div class="hist-labels"><span>$${buckets[0].lo.toFixed(0)}</span><span>Agent price: $${agentPrice}</span><span>$${buckets[buckets.length-1].hi.toFixed(0)}</span></div>
     </div>

@@ -75,7 +75,7 @@ every phase.
 | Character | Dimensions today | Currently fixed / trivial |
 |---|---|---|
 | **Market / World** | `n_pains`=8, `n_features`=8; hidden `solves: P→F` **bijection**; Zipf pain popularity; re-randomized per seed | bijection over tiny pools (oracle brute-forceable); static; no competitors |
-| **Customers / Users** | 5,000 users; per user `pains` (1–3, weighted) + `wtp` (lognormal ~$49); 20% held out | only 2 attributes; independent sampling; **memoryless** (re-buy every round) |
+| **Customers / Users** | 500,000 users; per user `pains` (1–3, weighted) + `wtp` (lognormal ~$49); 20% held out | only 2 attributes; independent sampling; **memoryless** (re-buy every round) |
 | **Firm** | `cash` ($6k), `built_features` w/ `implementation_quality` (**=1.0**), one global `price`, `round` | quality dim dormant; one product; one-shot revenue |
 | **Founder / Agent** | 3 real levers: `build` (1/rd), `set_price` (global), `campaign(target_pains, spend)`; target **by pain only** | `probe_market` ≡ `run_campaign`; no channel/quality/segment levers |
 | **Product / Features** | `feature_id`; flat $300; instant; binary; solves 1 pain | quality unused; no NL layer |

@@ -201,7 +201,7 @@ code,.mono{font-family:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,mo
       </div>
       <div class="b">
         <div class="v" style="color:#fff">0</div>
-        <div class="k">LLM judges. Reward is profit, computed exactly by a 5,000-user market sim</div>
+        <div class="k">LLM judges. Reward is profit, computed exactly by a 500,000-user market sim</div>
       </div>
     </div>
 
@@ -251,12 +251,12 @@ code,.mono{font-family:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,mo
     <div class="kicker rv"><span class="num">02</span><span class="bar"></span> The environment</div>
     <h2 class="rv d1">One agent. One hidden market.<br>~16 rounds to <span class="hl">find the money.</span></h2>
     <p class="lede rv d2" style="margin-bottom:26px">
-      Drop a single agent into a market whose demand is hidden inside a 5,000-user simulation.
+      Drop a single agent into a market whose demand is hidden inside a 500,000-user simulation.
       Each episode is a brand-new randomized world. The agent runs experiments to reverse-engineer it.
     </p>
 
     <div class="loop rv d3">
-      <div class="node"><div class="t">Hidden world</div><div class="d">5,000 users from hidden personas — correlated pains, willingness-to-pay, preferred channel, churn.</div><div class="ar">→</div></div>
+      <div class="node"><div class="t">Hidden world</div><div class="d">500,000 users from hidden personas — correlated pains, willingness-to-pay, preferred channel, churn.</div><div class="ar">→</div></div>
       <div class="node"><div class="t">Agent acts</div><div class="d">6 MCP tools: probe, build, price, run campaigns — within a round, then commit.</div><div class="ar">→</div></div>
       <div class="node"><div class="t">Market sim</div><div class="d">A deterministic funnel runs: reach → try → buy → subscribe → churn.</div><div class="ar">→</div></div>
       <div class="node"><div class="t">Reward</div><div class="d">Per-target diagnostics + profit. Reward = profit ÷ a theoretical ceiling. Repeat.</div></div>
@@ -291,7 +291,7 @@ code,.mono{font-family:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,mo
     <h2 class="rv d1">Execution-based reward.<br><span class="hl">Nothing to fake.</span></h2>
 
     <div class="grid g4 rv d2" style="margin-top:8px">
-      <div class="card"><h3><span class="ic">⚖️</span> No LLM judge</h3><p>The sim computes profit from a 5,000-user funnel. The agent can't argue its way to a score.</p></div>
+      <div class="card"><h3><span class="ic">⚖️</span> No LLM judge</h3><p>The sim computes profit from a 500,000-user funnel. The agent can't argue its way to a score.</p></div>
       <div class="card"><h3><span class="ic">📐</span> Honest [0,1]</h3><p>reward = profit ÷ a theoretical ceiling — an optimistic true upper bound, not a policy. No clipping, no "beat the oracle."</p></div>
       <div class="card"><h3><span class="ic">🎲</span> Domain-randomized</h3><p>New hidden world every episode. Generalization is measured on held-out seeds — not a within-episode split.</p></div>
       <div class="card"><h3><span class="ic">🧩</span> Matched-quad design</h3><p>Every latent has an action, an observation, <em>and</em> a reward channel — so every skill is both learnable and graded.</p></div>
