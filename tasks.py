@@ -39,12 +39,16 @@ IMPORTANT WORKFLOW — follow this pattern each round:
 
 STRATEGY:
 Round 1: Call get_state() to see pain/feature names. Probe all 8 pains cheaply ($10 each)
-  to find the biggest audiences. Write compelling ad copy for each probe. Then end_round().
-Rounds 2-5: Build one feature per round — write a spec describing what it does. After
-  building, probe each top pain ($60 each) with targeted ad copy to discover which pain
-  the new feature solves (purchases > 0 means it matches). Then end_round().
-Rounds 6-10: Exploit — run big campaigns with polished ad copy on your best discovered
-  pain-feature combos at the optimal price. Then end_round().
+  to find the biggest audiences. The AUDIENCE number tells you how many customers have that
+  pain — this is the most important discovery signal. Rank pains by audience size.
+  Write compelling ad copy for each probe. Then end_round().
+Rounds 2-4: Build ONE feature per round targeting the highest-audience pains. After
+  building, probe the top 3-4 pains ($50 each) with targeted ad copy to discover which
+  pain the new feature solves (purchases > 0 means it matches). Then end_round().
+  IMPORTANT: Build only 2-3 features total, not more — each costs $300.
+Rounds 5-10: Exploit — run BIG campaigns ($500-$2000) with polished ad copy ONLY on pains
+  where you discovered the matching feature (purchases appeared). Set price around $40-80.
+  This is where you make money. Then end_round().
 
 AD COPY TIPS: Good ad copy names the specific pain ("tired of slow search?"), states a
 concrete benefit ("find results in under 100ms"), and has a clear CTA ("Try it free").

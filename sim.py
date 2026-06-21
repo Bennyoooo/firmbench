@@ -27,7 +27,7 @@ class Config:
     horizon: int = 10
     starting_cash: float = 6000.0
     build_cost: float = 300.0
-    impressions_per_dollar: float = 0.1   # cost per reached user = 1 / ipd = $10
+    impressions_per_dollar: float = 0.2   # $5 per reached user — informative probes at $50
     # purchase model: p_buy = sigmoid(alpha*fulfilled_frac + beta*(wtp-price)/wtp - gamma)
     alpha: float = 4.0
     beta: float = 2.0

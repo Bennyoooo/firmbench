@@ -61,6 +61,12 @@ STRATEGY: experiment cheaply first (probe demand, discover the mapping), then bu
 features for the most common pains and spend to exploit them at a good price. Avoid
 bankruptcy (cash must stay >= 0). You start with ${int(cfg.starting_cash)}.
 
+KEY INSIGHT: The "audience" number is your most important signal — it tells you how many
+customers have each pain (demand size). Rank pains by audience. Build only 2-3 features
+for the highest-audience pains. After building, probe to discover which pain each feature
+solves (purchases > 0 means match). Then spend big on exploitation campaigns for the
+discovered matches. Build few, exploit hard.
+
 ALWAYS end your reply with ONE JSON object in a ```json code block, e.g.:
 ```json
 {{"build": 2, "price": 45, "campaigns": [{{"target": [0], "spend": 50}}]}}

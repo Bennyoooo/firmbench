@@ -1,0 +1,467 @@
+{
+  "seed": 42,
+  "rounds": 10,
+  "final_reward": 0.0,
+  "holdout_profit": -66.37,
+  "reported_profit": -680.2,
+  "flagged": true,
+  "pain_names": [
+    "poor search",
+    "no notifications",
+    "lack of reporting",
+    "difficult migration",
+    "weak security",
+    "complex pricing",
+    "missing integrations",
+    "data export limitations"
+  ],
+  "feature_names": [
+    "migration toolkit",
+    "analytics suite",
+    "offline sync engine",
+    "notification center",
+    "smart search",
+    "mobile app",
+    "data exporter",
+    "payment dashboard"
+  ],
+  "actions": [
+    {
+      "build": null,
+      "price": 50.0,
+      "campaigns": [
+        {
+          "spend": 40.0,
+          "ad_copy": "Find Anything Instantly | Tired of poor search ruining your workflow? Get results in milliseconds with smart autocomplete | Try It Free",
+          "craft": 1.0,
+          "nl_targets": [
+            0
+          ],
+          "artifact_path": "artifacts/42/round_00/campaign_0/ad_card.html",
+          "target": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "spend": 40.0,
+          "ad_copy": "Secure, Simple & Connected | Stop wrestling with weak security, confusing pricing & missing integrations | Start Free Today",
+          "craft": 1.0,
+          "nl_targets": [
+            4,
+            5,
+            6
+          ],
+          "artifact_path": "artifacts/42/round_00/campaign_1/ad_card.html",
+          "target": [
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        {
+          "spend": 10.0,
+          "ad_copy": "Stop Struggling with Poor Search | Find any record instantly \u2014 no more digging through pages | Try Smart Search Free",
+          "craft": 1.0,
+          "nl_targets": [
+            0
+          ],
+          "artifact_path": "artifacts/42/round_00/campaign_2/ad_card.html",
+          "target": [
+            0
+          ]
+        },
+        {
+          "spend": 10.0,
+          "ad_copy": "Never Miss an Update Again | Instant notifications so your team always knows what's happening | Get Notified Now",
+          "craft": 1.0,
+          "nl_targets": [
+            1
+          ],
+          "artifact_path": "artifacts/42/round_00/campaign_3/ad_card.html",
+          "target": [
+            1
+          ]
+        },
+        {
+          "spend": 10.0,
+          "ad_copy": "Unlock Powerful Reporting | Transform your data into clear insights with one-click reports | Start Reporting Today",
+          "craft": 1.0,
+          "nl_targets": [
+            2
+          ],
+          "artifact_path": "artifacts/42/round_00/campaign_4/ad_card.html",
+          "target": [
+            2
+          ]
+        },
+        {
+          "spend": 10.0,
+          "ad_copy": "Migrate in Minutes, Not Months | Stop the painful data migration nightmare \u2014 our toolkit does it for you | Migrate Now",
+          "craft": 1.0,
+          "nl_targets": [
+            3
+          ],
+          "artifact_path": "artifacts/42/round_00/campaign_5/ad_card.html",
+          "target": [
+            3
+          ]
+        },
+        {
+          "spend": 10.0,
+          "ad_copy": "Bulletproof Your Security | Close vulnerabilities and protect customer data with enterprise-grade security | Secure It Now",
+          "craft": 1.0,
+          "nl_targets": [
+            4
+          ],
+          "artifact_path": "artifacts/42/round_00/campaign_6/ad_card.html",
+          "target": [
+            4
+          ]
+        },
+        {
+          "spend": 10.0,
+          "ad_copy": "Pricing That Actually Makes Sense | Stop confusing customers with complex pricing \u2014 our dashboard makes it crystal clear | Simplify Now",
+          "craft": 1.0,
+          "nl_targets": [
+            2,
+            5
+          ],
+          "artifact_path": "artifacts/42/round_00/campaign_7/ad_card.html",
+          "target": [
+            2,
+            5
+          ]
+        },
+        {
+          "spend": 10.0,
+          "ad_copy": "Connect All Your Tools | Stop working in silos \u2014 integrate with 100+ apps in just a few clicks | Connect Now",
+          "craft": 1.0,
+          "nl_targets": [
+            6
+          ],
+          "artifact_path": "artifacts/42/round_00/campaign_8/ad_card.html",
+          "target": [
+            6
+          ]
+        },
+        {
+          "spend": 10.0,
+          "ad_copy": "Export Your Data Your Way | Stop being locked in \u2014 download, share, and own your data with flexible export tools | Export Free",
+          "craft": 1.0,
+          "nl_targets": [
+            7
+          ],
+          "artifact_path": "artifacts/42/round_00/campaign_9/ad_card.html",
+          "target": [
+            7
+          ]
+        }
+      ]
+    },
+    {
+      "build": 0,
+      "price": 50.0,
+      "campaigns": [
+        {
+          "spend": 60.0,
+          "ad_copy": "Migrate in Minutes, Not Months | Our Migration Toolkit automates data transfer from 50+ platforms with zero downtime and one-click rollback | Start Your Free Migration",
+          "craft": 1.0,
+          "nl_targets": [
+            3
+          ],
+          "artifact_path": "artifacts/42/round_01/campaign_0/ad_card.html",
+          "target": [
+            3
+          ]
+        },
+        {
+          "spend": 30.0,
+          "ad_copy": "Your Data Migration Solved | Move from any platform instantly \u2014 no IT help needed, no data lost | Try Free Today",
+          "craft": 1.0,
+          "nl_targets": [
+            3
+          ],
+          "artifact_path": "artifacts/42/round_01/campaign_1/ad_card.html",
+          "target": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        }
+      ],
+      "spec": "Migration Toolkit\nSeamlessly migrate all your data from any platform in minutes, not months.\n- Automated data mapping from 50+ source formats\n- Zero-downtime migration with live progress tracking\n- Built-in validation to catch errors before they cause problems\n- One-click rollback if anything goes wrong\n- Step-by-step guided wizard for non-technical users",
+      "quality": 1.0,
+      "feature_artifact_path": "artifacts/42/round_01/feature_0/feature_page.html"
+    },
+    {
+      "build": 6,
+      "price": 50.0,
+      "campaigns": [
+        {
+          "spend": 60.0,
+          "ad_copy": "Your Data, Your Way \u2014 Always | Stop being locked in. Export to CSV, Excel, JSON anytime with scheduled backups and zero data lock-in | Export Free Now",
+          "craft": 1.0,
+          "nl_targets": [
+            7
+          ],
+          "artifact_path": "artifacts/42/round_02/campaign_0/ad_card.html",
+          "target": [
+            7
+          ]
+        },
+        {
+          "spend": 60.0,
+          "ad_copy": "End Migration Pain Forever | Automated toolkit migrates your data from 50+ platforms \u2014 zero downtime, full validation, instant rollback | Migrate Now Free",
+          "craft": 1.0,
+          "nl_targets": [
+            3
+          ],
+          "artifact_path": "artifacts/42/round_02/campaign_1/ad_card.html",
+          "target": [
+            3
+          ]
+        }
+      ],
+      "spec": "Data Exporter\nExport all your data in any format, any time \u2014 you own it completely.\n- One-click export to CSV, Excel, JSON, and PDF\n- Scheduled automatic exports to your storage of choice\n- Bulk export of filtered datasets with custom field selection\n- Full audit trail of all exports for compliance\n- No data lock-in: leave or back up whenever you want",
+      "quality": 1.0,
+      "feature_artifact_path": "artifacts/42/round_02/feature_6/feature_page.html"
+    },
+    {
+      "build": 1,
+      "price": 79.0,
+      "campaigns": [
+        {
+          "spend": 60.0,
+          "ad_copy": "Reports in Seconds, Not Hours | Our Analytics Suite gives you drag-and-drop reports, live dashboards, and 20+ templates \u2014 zero SQL needed | Get Insights Free",
+          "craft": 1.0,
+          "nl_targets": [
+            2
+          ],
+          "artifact_path": "artifacts/42/round_03/campaign_0/ad_card.html",
+          "target": [
+            2
+          ]
+        },
+        {
+          "spend": 60.0,
+          "ad_copy": "Migrate in Minutes, Not Months | Our Migration Toolkit moves your data from 50+ platforms \u2014 automated, zero downtime, with rollback protection | Start Free Migration",
+          "craft": 1.0,
+          "nl_targets": [
+            3
+          ],
+          "artifact_path": "artifacts/42/round_03/campaign_1/ad_card.html",
+          "target": [
+            3
+          ]
+        }
+      ],
+      "spec": "Analytics Suite\nTurn your raw data into powerful insights with beautiful, actionable reports.\n- Drag-and-drop report builder \u2014 no SQL needed\n- 20+ pre-built report templates for common use cases\n- Real-time dashboards with live data refresh\n- Scheduled email reports delivered to your inbox\n- Export reports to PDF, Excel, or share via link",
+      "quality": 1.0,
+      "feature_artifact_path": "artifacts/42/round_03/feature_1/feature_page.html"
+    },
+    {
+      "build": 4,
+      "price": 79.0,
+      "campaigns": [
+        {
+          "spend": 200.0,
+          "ad_copy": "Reports in Seconds, Not Hours | Build drag-and-drop reports, live dashboards & scheduled emails \u2014 zero SQL, zero headaches. Your data finally tells a story | Get Insights Free Today",
+          "craft": 1.0,
+          "nl_targets": [
+            2
+          ],
+          "artifact_path": "artifacts/42/round_04/campaign_0/ad_card.html",
+          "target": [
+            2
+          ]
+        },
+        {
+          "spend": 60.0,
+          "ad_copy": "Find Anything in Under 1 Second | Smart Search scans all your data instantly \u2014 typo-tolerant, filterable, and blazing fast | Search Free Now",
+          "craft": 1.0,
+          "nl_targets": [
+            0
+          ],
+          "artifact_path": "artifacts/42/round_04/campaign_1/ad_card.html",
+          "target": [
+            0
+          ]
+        }
+      ],
+      "spec": "Smart Search\nFind any record, file, or data instantly \u2014 no more endless scrolling.\n- Sub-100ms full-text search across all your data\n- Typo-tolerant search that finds results even with mistakes\n- Filters and facets to narrow results instantly\n- Search history and saved searches for power users\n- Highlighted keyword matches so you spot results at a glance",
+      "quality": 1.0,
+      "feature_artifact_path": "artifacts/42/round_04/feature_4/feature_page.html"
+    },
+    {
+      "build": 3,
+      "price": 79.0,
+      "campaigns": [
+        {
+          "spend": 400.0,
+          "ad_copy": "Stop Flying Blind on Your Data | Build instant reports & live dashboards with drag-and-drop ease \u2014 20+ templates, zero SQL required. See your business clearly | Start Free Today",
+          "craft": 1.0,
+          "nl_targets": [
+            2
+          ],
+          "artifact_path": "artifacts/42/round_05/campaign_0/ad_card.html",
+          "target": [
+            2
+          ]
+        },
+        {
+          "spend": 60.0,
+          "ad_copy": "Never Miss Another Critical Update | Real-time push, email & in-app notifications with smart digests and custom alert rules \u2014 stay in the loop always | Set Up Notifications Free",
+          "craft": 1.0,
+          "nl_targets": [
+            1
+          ],
+          "artifact_path": "artifacts/42/round_05/campaign_1/ad_card.html",
+          "target": [
+            1
+          ]
+        }
+      ],
+      "spec": "Notification Center\nNever miss a critical update \u2014 instant alerts delivered exactly when you need them.\n- Real-time push, email, and in-app notifications\n- Smart digest: daily or weekly summaries to cut noise\n- Custom notification rules for your most important events\n- Team mentions and @tagging with instant alerts\n- Full notification history so nothing slips through",
+      "quality": 1.0,
+      "feature_artifact_path": "artifacts/42/round_05/feature_3/feature_page.html"
+    },
+    {
+      "build": null,
+      "price": 99.0,
+      "campaigns": [
+        {
+          "spend": 500.0,
+          "ad_copy": "Stop Flying Blind on Your Data | Build beautiful reports & live dashboards in minutes \u2014 drag-and-drop simplicity, 20+ templates, zero SQL needed. Your insights are waiting | Try Analytics Free",
+          "craft": 1.0,
+          "nl_targets": [
+            2
+          ],
+          "artifact_path": "artifacts/42/round_06/campaign_0/ad_card.html",
+          "target": [
+            2
+          ]
+        },
+        {
+          "spend": 200.0,
+          "ad_copy": "Never Miss Another Critical Update | Real-time push, email & in-app alerts with smart digests \u2014 stay on top of everything that matters to your team | Enable Notifications Free",
+          "craft": 1.0,
+          "nl_targets": [
+            1
+          ],
+          "artifact_path": "artifacts/42/round_06/campaign_1/ad_card.html",
+          "target": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "build": 2,
+      "price": 99.0,
+      "campaigns": [
+        {
+          "spend": 600.0,
+          "ad_copy": "Reports + Alerts That Actually Work | Get drag-and-drop analytics dashboards AND real-time notifications \u2014 never miss an insight or update again | Start Free Today",
+          "craft": 1.0,
+          "nl_targets": [
+            1,
+            2
+          ],
+          "artifact_path": "artifacts/42/round_07/campaign_0/ad_card.html",
+          "target": [
+            1,
+            2
+          ]
+        },
+        {
+          "spend": 60.0,
+          "ad_copy": "Zero-Downtime Migration Made Easy | Migrate from any platform in minutes \u2014 automated mapping, live validation, instant rollback. IT team optional | Migrate Free Now",
+          "craft": 1.0,
+          "nl_targets": [
+            3
+          ],
+          "artifact_path": "artifacts/42/round_07/campaign_1/ad_card.html",
+          "target": [
+            3
+          ]
+        }
+      ],
+      "spec": "Offline Sync Engine\nKeep working even without internet \u2014 your data syncs the moment you reconnect.\n- Full offline access to all your critical data and workflows\n- Automatic conflict resolution when multiple users sync\n- Background sync with real-time progress indicator\n- Works on mobile, tablet, and desktop seamlessly\n- Zero data loss guarantee \u2014 every change is preserved",
+      "quality": 1.0,
+      "feature_artifact_path": "artifacts/42/round_07/feature_2/feature_page.html"
+    },
+    {
+      "build": null,
+      "price": 99.0,
+      "campaigns": [
+        {
+          "spend": 30.0,
+          "ad_copy": "Migrate Instantly, Stay Online | Automated data migration toolkit \u2014 50+ source platforms, zero downtime, one-click rollback guarantee | Try Free Migration",
+          "craft": 1.0,
+          "nl_targets": [
+            3
+          ],
+          "artifact_path": "artifacts/42/round_08/campaign_0/ad_card.html",
+          "target": [
+            3
+          ]
+        },
+        {
+          "spend": 800.0,
+          "ad_copy": "The Analytics + Alerts Platform Your Team Needs | Drag-and-drop reports, live dashboards, and instant notifications \u2014 see your data clearly and never miss a critical update | Start Free Now",
+          "craft": 1.0,
+          "nl_targets": [
+            1,
+            2
+          ],
+          "artifact_path": "artifacts/42/round_08/campaign_1/ad_card.html",
+          "target": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "build": null,
+      "price": 99.0,
+      "campaigns": [
+        {
+          "spend": 1200.0,
+          "ad_copy": "See Every Insight. Miss Nothing. | Power your team with drag-and-drop analytics dashboards AND real-time smart notifications \u2014 built for businesses that can't afford to be slow or blind | Start Free \u2014 No Credit Card",
+          "craft": 1.0,
+          "nl_targets": [
+            1,
+            2
+          ],
+          "artifact_path": "artifacts/42/round_09/campaign_0/ad_card.html",
+          "target": [
+            1,
+            2
+          ]
+        },
+        {
+          "spend": 200.0,
+          "ad_copy": "Your Data, Fully Yours \u2014 Forever | Export everything instantly: CSV, Excel, JSON, PDF. Scheduled auto-backups, custom field selection, zero lock-in | Export Your Data Free",
+          "craft": 1.0,
+          "nl_targets": [
+            7
+          ],
+          "artifact_path": "artifacts/42/round_09/campaign_1/ad_card.html",
+          "target": [
+            7
+          ]
+        }
+      ]
+    }
+  ]
+}
