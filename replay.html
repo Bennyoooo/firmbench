@@ -99,7 +99,7 @@ canvas{width:100%!important;height:100%!important}
       <div class="panel-body"><table id="campaignTable"><tbody></tbody></table></div>
     </div>
     <div class="panel" style="margin-top:16px">
-      <div class="panel-header">📈 Profit Over Time</div>
+      <div class="panel-header">📈 Ad Spend vs Revenue (per round)</div>
       <div class="panel-body">
         <div class="chart-container"><canvas id="profitChart"></canvas></div>
       </div>
@@ -123,9 +123,8 @@ let playing = false;
 let playInterval = null;
 let profitHistory = [];
 let currentDir = 'artifacts/42';
-let allModels = []; // [{dir, name, reward, profit, disc_eff}]
+let allModels = []; // model runs for seed 42
 
-// Model display names
 const MODEL_NAMES = {
   'gpt-5-5': 'GPT-5.5', 'gpt-5': 'GPT-5', 'gpt-5-mini': 'GPT-5 Mini', 'gpt-4o': 'GPT-4o',
   'claude': 'Claude Sonnet 4.6', 'claude-opus-4-8': 'Claude Opus 4.8',
@@ -136,15 +135,16 @@ const RANK_COLORS = ['#f59e0b','#a0a0a0','#cd7f32','#667eea','#667eea','#667eea'
 
 async function discoverModels() {
   allModels = [];
-  // Check artifacts/42_* directories (model-specific) and artifacts/42 (default)
-  const candidates = [
-    '42', '42_gpt-5-5', '42_gpt-5', '42_gpt-5-mini', '42_gpt-4o',
-    '42_claude', '42_claude-opus-4-8', '42_gemini', '42_deepseek-v4-0324', '42_glm-5-1',
-    // Also check numbered seeds
-    '1','2','3','4','5','6','7','8','100','101','102','103','104','105','106','107','108','109','110','123'
+  // Only look for model-specific directories: artifacts/42_<model>
+  const modelCandidates = [
+    '42_gpt-5-5', '42_gpt-5', '42_gpt-5-mini', '42_gpt-4o',
+    '42_claude', '42_claude-opus-4-8', '42_gemini',
+    '42_deepseek-v4-0324', '42_glm-5-1',
   ];
+  // Also check artifacts/42 as "Latest Run"
+  modelCandidates.unshift('42');
 
-  for (const c of candidates) {
+  for (const c of modelCandidates) {
     try {
       const r = await fetch(`artifacts/${c}/manifest.json`);
       if (!r.ok) continue;
@@ -163,6 +163,8 @@ async function discoverModels() {
     } catch(e) {}
   }
 
+  // Filter out zero-round entries and duplicates, sort by reward
+  allModels = allModels.filter(m => m.rounds > 0);
   allModels.sort((a, b) => b.reward - a.reward);
   renderLeaderboard();
   populateModelSelect();
@@ -238,19 +240,22 @@ function renderRound() {
   const modelEntry = allModels.find(m => m.dir === currentDir);
   const modelName = modelEntry ? modelEntry.name : currentDir;
 
-  // Status bar
-  let cumProfit = 0;
+  // Use manifest-level total profit (includes subscription revenue)
+  const totalProfit = manifest.profit || manifest.reported_profit || 0;
+
+  // Campaign-only cumulative (for the chart — what's visible per-round)
+  let cumCampaignPL = 0;
   for (let i = 0; i <= currentRound; i++) {
     const a = manifest.actions[i];
-    if (a && a.campaigns) a.campaigns.forEach(c => { cumProfit += (c.revenue||0) - (c.spend||0); });
-    if (a && a.build !== null && a.build !== undefined) cumProfit -= 300;
+    if (a && a.campaigns) a.campaigns.forEach(c => { cumCampaignPL += (c.revenue||0) - (c.spend||0); });
+    if (a && a.build !== null && a.build !== undefined) cumCampaignPL -= 300;
   }
 
   const sb = document.getElementById('statusBar');
   sb.innerHTML = `
     <div class="status-item"><span class="model-badge">${esc(modelName)}</span></div>
     <div class="status-item"><span class="dot dot-gold"></span> Round ${currentRound+1}/${manifest.rounds}</div>
-    <div class="status-item">💰 Cumulative: <span class="${cumProfit >= 0 ? 'positive' : 'negative'}">$${cumProfit.toLocaleString(undefined,{maximumFractionDigits:0})}</span></div>
+    <div class="status-item">💰 Total Profit: <span class="${totalProfit >= 0 ? 'positive' : 'negative'}">$${totalProfit.toLocaleString(undefined,{maximumFractionDigits:0})}</span></div>
     <div class="status-item">🎯 Discovery: ${(manifest.disc_eff*100||0).toFixed(1)}%</div>
     <div class="status-item">${(manifest.flagged||false) ? '<span class="dot dot-red"></span> Flagged' : '<span class="dot dot-green"></span> Clean'}</div>
   `;
@@ -330,16 +335,14 @@ function renderRound() {
     });
   }
 
-  // Profit chart
+  // Chart: per-round ad spend (red) vs ad revenue (green)
   profitHistory = [];
-  let running = 0;
   for (let i = 0; i < manifest.rounds; i++) {
     const a = manifest.actions[i];
-    let rp = 0;
-    if (a && a.campaigns) a.campaigns.forEach(c => { rp += (c.revenue||0) - (c.spend||0); });
-    if (a && a.build !== null && a.build !== undefined) rp -= 300;
-    running += rp;
-    profitHistory.push(running);
+    let spend = 0, revenue = 0;
+    if (a && a.campaigns) a.campaigns.forEach(c => { spend += (c.spend||0); revenue += (c.revenue||0); });
+    if (a && a.build !== null && a.build !== undefined) spend += 300;
+    profitHistory.push({spend, revenue});
   }
   drawChart();
 
@@ -378,28 +381,40 @@ function drawChart() {
   ctx.clearRect(0, 0, W, H);
 
   if (profitHistory.length === 0) return;
-  const maxV = Math.max(...profitHistory.map(Math.abs), 1);
-  const barW = Math.max(8, (W - 60) / profitHistory.length - 4);
-  const zeroY = H * 0.6;
+  const maxV = Math.max(...profitHistory.map(p => Math.max(p.spend, p.revenue)), 1);
+  const groupW = (W - 60) / profitHistory.length;
+  const barW = Math.max(4, groupW * 0.35);
+  const gap = Math.max(1, groupW * 0.05);
 
+  // axis
   ctx.strokeStyle = '#1e2130'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(40, zeroY); ctx.lineTo(W, zeroY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(40, H - 20); ctx.lineTo(W, H - 20); ctx.stroke();
 
-  profitHistory.forEach((v, i) => {
-    const x = 50 + i * (barW + 4);
-    const barH = (Math.abs(v) / maxV) * (H * 0.5);
-    const y = v >= 0 ? zeroY - barH : zeroY;
-    ctx.fillStyle = i <= currentRound ? (v >= 0 ? '#38ef7d' : '#ef4444') : '#1e2130';
-    ctx.beginPath();
-    ctx.roundRect(x, y, barW, barH, 3);
-    ctx.fill();
+  profitHistory.forEach((p, i) => {
+    const x = 50 + i * groupW;
+    const active = i <= currentRound;
+    // Spend bar (left, red)
+    const spendH = (p.spend / maxV) * (H - 30);
+    ctx.fillStyle = active ? '#ef444488' : '#1e2130';
+    ctx.beginPath(); ctx.roundRect(x, H - 20 - spendH, barW, spendH, 2); ctx.fill();
+    // Revenue bar (right, green)
+    const revH = (p.revenue / maxV) * (H - 30);
+    ctx.fillStyle = active ? '#38ef7d88' : '#1e2130';
+    ctx.beginPath(); ctx.roundRect(x + barW + gap, H - 20 - revH, barW, revH, 2); ctx.fill();
+    // Label
     ctx.fillStyle = i === currentRound ? '#fff' : '#6b7084';
     ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(`R${i+1}`, x + barW/2, H - 4);
+    ctx.fillText(`R${i+1}`, x + barW + gap/2, H - 4);
   });
 
-  ctx.fillStyle = '#6b7084'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
-  ctx.fillText('$0', 36, zeroY + 4);
+  // Legend
+  ctx.fillStyle = '#ef4444'; ctx.fillRect(50, 4, 10, 10);
+  ctx.fillStyle = '#6b7084'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText('Spend', 64, 13);
+  ctx.fillStyle = '#38ef7d'; ctx.fillRect(110, 4, 10, 10);
+  ctx.fillStyle = '#6b7084'; ctx.fillText('Ad Revenue', 124, 13);
+  ctx.fillStyle = '#6b7084'; ctx.font = '9px sans-serif';
+  ctx.fillText('(subscription revenue not shown per-round)', 200, 13);
 }
 
 function prevRound() { if (currentRound > 0) { currentRound--; renderRound(); } }
