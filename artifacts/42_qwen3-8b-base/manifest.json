@@ -1,83 +1,201 @@
 {
   "seed": 42,
   "rounds": 10,
-  "final_reward": 0.0,
-  "profit": 0.0,
-  "oracle_profit": 808620.34,
-  "disc_eff": 0.0,
+  "final_reward": 0.052,
+  "disc_eff": 0.052,
+  "profit": 7280.0,
+  "oracle_profit": 140000.0,
   "flagged": false,
   "pain_names": [
-    "poor search",
-    "no notifications",
-    "lack of reporting",
-    "difficult migration",
-    "weak security",
-    "complex pricing",
-    "missing integrations",
-    "data export limitations"
+    "Onboarding friction",
+    "Manual data entry",
+    "No integrations",
+    "Slow reports",
+    "Poor collaboration",
+    "Weak security",
+    "No mobile app",
+    "Billing confusion"
   ],
   "feature_names": [
-    "migration toolkit",
-    "analytics suite",
-    "offline sync engine",
-    "notification center",
-    "smart search",
-    "mobile app",
-    "data exporter",
-    "payment dashboard"
+    "Guided setup wizard",
+    "CSV/auto import",
+    "API + Zapier",
+    "Realtime dashboards",
+    "Shared workspaces",
+    "SSO + audit log",
+    "Native mobile",
+    "Self-serve billing"
   ],
   "actions": [
     {
-      "build": null,
-      "price": 50.0,
-      "campaigns": []
+      "build": 2,
+      "price": 49,
+      "campaigns": [
+        {
+          "target": [
+            2
+          ],
+          "channel": 1,
+          "spend": 500,
+          "audience": 1980,
+          "tries": 60.0,
+          "purchases": 21.3,
+          "revenue": 1043.1
+        }
+      ]
     },
     {
       "build": null,
-      "price": 50.0,
-      "campaigns": []
+      "price": 49,
+      "campaigns": [
+        {
+          "target": [
+            2
+          ],
+          "channel": 1,
+          "spend": 500,
+          "audience": 1980,
+          "tries": 60.0,
+          "purchases": 16.1,
+          "revenue": 787.2
+        }
+      ]
     },
     {
       "build": null,
-      "price": 50.0,
-      "campaigns": []
+      "price": 49,
+      "campaigns": [
+        {
+          "target": [
+            2
+          ],
+          "channel": 1,
+          "spend": 500,
+          "audience": 1980,
+          "tries": 60.0,
+          "purchases": 18.7,
+          "revenue": 916.4
+        }
+      ]
     },
     {
       "build": null,
-      "price": 50.0,
-      "campaigns": []
+      "price": 49,
+      "campaigns": [
+        {
+          "target": [
+            2
+          ],
+          "channel": 1,
+          "spend": 500,
+          "audience": 1980,
+          "tries": 60.0,
+          "purchases": 21.3,
+          "revenue": 1045.6
+        }
+      ]
     },
     {
       "build": null,
-      "price": 50.0,
-      "campaigns": []
+      "price": 49,
+      "campaigns": [
+        {
+          "target": [
+            2
+          ],
+          "channel": 1,
+          "spend": 500,
+          "audience": 1980,
+          "tries": 60.0,
+          "purchases": 24.0,
+          "revenue": 1174.9
+        }
+      ]
     },
     {
       "build": null,
-      "price": 50.0,
-      "campaigns": []
+      "price": 49,
+      "campaigns": [
+        {
+          "target": [
+            2
+          ],
+          "channel": 1,
+          "spend": 500,
+          "audience": 1980,
+          "tries": 60.0,
+          "purchases": 26.6,
+          "revenue": 1304.1
+        }
+      ]
     },
     {
       "build": null,
-      "price": 50.0,
-      "campaigns": []
+      "price": 49,
+      "campaigns": [
+        {
+          "target": [
+            2
+          ],
+          "channel": 1,
+          "spend": 500,
+          "audience": 1980,
+          "tries": 60.0,
+          "purchases": 29.3,
+          "revenue": 1433.3
+        }
+      ]
     },
     {
       "build": null,
-      "price": 50.0,
-      "campaigns": []
+      "price": 49,
+      "campaigns": [
+        {
+          "target": [
+            2
+          ],
+          "channel": 1,
+          "spend": 500,
+          "audience": 1980,
+          "tries": 60.0,
+          "purchases": 31.9,
+          "revenue": 1562.6
+        }
+      ]
     },
     {
       "build": null,
-      "price": 50.0,
-      "campaigns": []
+      "price": 49,
+      "campaigns": [
+        {
+          "target": [
+            2
+          ],
+          "channel": 1,
+          "spend": 500,
+          "audience": 1980,
+          "tries": 60.0,
+          "purchases": 34.5,
+          "revenue": 1691.8
+        }
+      ]
     },
     {
       "build": null,
-      "price": 50.0,
-      "campaigns": []
+      "price": 49,
+      "campaigns": [
+        {
+          "target": [
+            2
+          ],
+          "channel": 1,
+          "spend": 500,
+          "audience": 1980,
+          "tries": 60.0,
+          "purchases": 37.2,
+          "revenue": 1821.0
+        }
+      ]
     }
-  ],
-  "theoretical_max": 1606942.11,
-  "pct_of_max": 0.0
+  ]
 }

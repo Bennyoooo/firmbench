@@ -1,0 +1,88 @@
+{
+  "curve": [
+    {
+      "iter": 0,
+      "eval_reward": 0.052
+    },
+    {
+      "iter": 1,
+      "eval_reward": 0.1134
+    },
+    {
+      "iter": 2,
+      "eval_reward": 0.1358
+    },
+    {
+      "iter": 3,
+      "eval_reward": 0.1841
+    },
+    {
+      "iter": 4,
+      "eval_reward": 0.196
+    },
+    {
+      "iter": 5,
+      "eval_reward": 0.2277
+    },
+    {
+      "iter": 6,
+      "eval_reward": 0.2343
+    },
+    {
+      "iter": 7,
+      "eval_reward": 0.2566
+    },
+    {
+      "iter": 8,
+      "eval_reward": 0.2592
+    },
+    {
+      "iter": 9,
+      "eval_reward": 0.2748
+    },
+    {
+      "iter": 10,
+      "eval_reward": 0.2756
+    },
+    {
+      "iter": 11,
+      "eval_reward": 0.286
+    },
+    {
+      "iter": 12,
+      "eval_reward": 0.2854
+    },
+    {
+      "iter": 13,
+      "eval_reward": 0.2929
+    },
+    {
+      "iter": 14,
+      "eval_reward": 0.2927
+    },
+    {
+      "iter": 15,
+      "eval_reward": 0.298
+    },
+    {
+      "iter": 16,
+      "eval_reward": 0.2968
+    },
+    {
+      "iter": 17,
+      "eval_reward": 0.3002
+    },
+    {
+      "iter": 18,
+      "eval_reward": 0.2994
+    },
+    {
+      "iter": 19,
+      "eval_reward": 0.3023
+    },
+    {
+      "iter": 20,
+      "eval_reward": 0.305
+    }
+  ]
+}
