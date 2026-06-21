@@ -45,3 +45,18 @@ budget, target the high-audience pains, price for retention).
   --inference-parameters-temperature 1.0 ... --force --skip-validation --ignore-docker`.
 - Job: `kby4ofja` → model `accounts/bennyjxh/models/firmbench-qwen3-8b-grpo-v4`.
 - Held-out generalization eval + HUD eval of the checkpoint: see below / HUD_EVAL.md.
+
+
+## Held-out generalization (unseen worlds, fraction-of-oracle)
+
+The trained model was also evaluated on **16 held-out worlds it never trained on**:
+
+| Model | Held-out reward |
+|---|---|
+| base qwen3-8b | **0.147** |
+| qwen3-8b GRPO (trained) | **0.529** |
+
+**+0.382 (+260% relative) on unseen worlds** — the policy learned a transferable
+market-strategy skill (feature selection under budget + retention pricing + targeting),
+not memorization of the training seeds. (Served via dedicated B200 LoRA deployment;
+metric = profit/oracle clipped to [0,1].)
