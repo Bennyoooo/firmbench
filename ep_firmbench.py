@@ -1,28 +1,96 @@
 """FirmBench RL reward for Fireworks GRPO via eval-protocol (managed RFT).
 
-Quick-test / cost-probe version: SINGLE-TURN. Each dataset row is a round-0 market
-observation; the model emits one JSON action; the reward is the normalized one-step
-profit of that action run through the deterministic sim. This is a real FirmBench
-signal with a minimal surface, used to gauge qwen3-8b GRPO cost/quota before scaling
-to the full multi-turn env (and to qwen3-32b).
+TWO rewards here:
 
-Launch (dry-run prints the planned job, no charge):
+1. firmbench_episode  (PRIMARY, multi-turn) — the real FirmBench objective. Each rollout is a
+   FULL interactive episode through the MCP-Gym env (firmbench_mcp/): the model calls
+   `firm_round` each round, sees per-campaign diagnostics, and adapts (probe -> discover ->
+   exploit). Reward = disc.eff = profit / oracle, delivered densely as per-round
+   profit/oracle (sums to disc.eff). A single completion CAN'T express FirmBench — round 0
+   has no demand signal — so the reward must be interactive/multi-turn.
+
+2. firmbench_round_profit  (LEGACY, single-turn) — the original round-0 cost-probe (one
+   action, one-step profit). Kept for reference / cheap quota checks. This is what the first
+   qwen3-8b and glm GRPO runs used; firmbench_episode is the upgrade.
+
+Local check (env + reward, no model):
+    python3 firmbench_mcp/firmbench_adapter.py is wrapped; see the validation in the repo.
+
+Launch multi-turn RFT (GRPO) — provide the MCP-Gym server so Fireworks drives the episode:
     export FIREWORKS_API_KEY=...  FIREWORKS_ACCOUNT_ID=bennyjxh
-    python3 -m eval_protocol.cli create rft --entry ep_firmbench.py::firmbench_round_profit \
-        --training-config-base-model accounts/fireworks/models/qwen3-8b \
-        --training-config-lora-rank 8 --loss-config-method grpo \
-        --training-config-epochs 1 --max-concurrent-rollouts 4 --dry-run --skip-validation
+    python3 -m eval_protocol.cli create rft --entry ep_firmbench.py::firmbench_episode \
+        --training-config-base-model accounts/fireworks/models/glm-5p1 \
+        --training-config-max-context-length 8192 --training-config-lora-rank 8 \
+        --training-config-epochs 1 --max-concurrent-rollouts 4
+  (or, native firectl with --mcp-server firmbench_mcp/server.py once the evaluator is uploaded;
+   see PHASE_D_RUN.md for the firectl reinforcement-fine-tuning-job recipe.)
 """
 
-from eval_protocol.models import EvaluationRow, EvaluateResult, Message
+from eval_protocol.models import EvaluationRow, EvaluateResult, InputMetadata, Message
 from eval_protocol.pytest import evaluation_test
+from eval_protocol.pytest.default_mcp_gym_rollout_processor import MCPGymRolloutProcessor
 
 from sim import Config, generate_world, FirmEnv
 from agent import system_prompt, format_obs, extract_json, validate_action
 
 cfg = Config()
-SEEDS = list(range(1, 9))  # 8 training worlds
+SEEDS = list(range(1, 9))  # 8 training worlds (disjoint from the 100+ held-out eval seeds)
 
+# Multi-turn system prompt: the model drives the firm via the firm_round MCP tool.
+_MCP_SYSTEM_PROMPT = system_prompt(cfg) + """
+
+YOU INTERACT VIA ONE TOOL: firm_round(action_json). Call it once per round. `action_json` is a
+JSON object: {"build": feature_id or null, "price": number, "campaigns": [{"target": [pain_ids],
+"spend": dollars, "channel": 0-2}]}. The tool returns the next observation (per-campaign
+audience / tries / purchases / revenue). Round 0: probe pains cheaply ($10 each) to read demand.
+Then build for the biggest-audience pains, find which pain each feature solves (purchases>0), and
+exploit. Keep calling firm_round until the episode ends (cash must stay >= 0)."""
+
+
+# ----------------------------- PRIMARY: multi-turn episode reward -----------------------------
+
+def _episode_dataset():
+    """One row per training world; the MCP-Gym server is seeded from environment_context."""
+    rows = []
+    for s in SEEDS:
+        rows.append(EvaluationRow(
+            messages=[Message(role="system", content=_MCP_SYSTEM_PROMPT)],
+            input_metadata=InputMetadata(
+                row_id=f"firmbench-seed-{s}",
+                dataset_info={
+                    "environment_context": {"game": "FirmBench", "seed": s},
+                    "user_prompt_template": (
+                        "Round {round}. Call firm_round(action_json) with your action. "
+                        "Latest observation:\n{observation}"
+                    ),
+                },
+            ),
+        ))
+    return rows
+
+
+@evaluation_test(
+    input_rows=[_episode_dataset()],
+    completion_params=[{
+        "model": "accounts/fireworks/models/qwen3-8b",
+        "temperature": 0.7,
+        "max_tokens": 2048,
+    }],
+    rollout_processor=MCPGymRolloutProcessor(),
+    server_script_path="firmbench_mcp/server.py",
+    mode="pointwise",
+    max_concurrent_rollouts=4,
+)
+def firmbench_episode(row: EvaluationRow) -> EvaluationRow:
+    """Reward = full-episode disc.eff. The MCP-Gym env returns per-round profit/oracle; their
+    sum (row.get_total_reward()) is disc.eff. Clip to [0,1] for a clean GRPO reward."""
+    disc_eff = max(0.0, min(1.0, row.get_total_reward()))
+    row.evaluation_result = EvaluateResult(
+        score=disc_eff, reason=f"episode disc.eff = {disc_eff:.3f} (profit/oracle)")
+    return row
+
+
+# ----------------------------- LEGACY: single-turn round-0 cost-probe -----------------------------
 
 def _dataset():
     rows = []
@@ -50,7 +118,7 @@ def _dataset():
     mode="pointwise",
 )
 def firmbench_round_profit(row: EvaluationRow) -> EvaluationRow:
-    """Reward = normalized one-step profit of the model's action on its world."""
+    """LEGACY cost-probe: reward = normalized one-step profit of the model's round-0 action."""
     seed = (row.ground_truth or {}).get("seed", 1)
     world = generate_world(seed, cfg)
     env = FirmEnv(world)
@@ -58,7 +126,6 @@ def firmbench_round_profit(row: EvaluationRow) -> EvaluationRow:
     text = (row.messages[-1].content or "") if row.messages else ""
     action = validate_action(extract_json(text), cfg)
     _obs, profit, _done, _ = env.step(action)
-    # round-0 profit lives roughly in [-600, +600]; map to [0, 1]
     score = max(0.0, min(1.0, (profit + 600.0) / 1200.0))
     row.evaluation_result = EvaluateResult(score=score, reason=f"round-0 profit ${profit:.0f}")
     return row
