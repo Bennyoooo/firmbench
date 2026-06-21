@@ -158,13 +158,15 @@ all via experiments.
 
 | Policy | disc.eff | mean profit |
 |---|---|---|
-| naive (no discovery) | 0.076 | 32,273 |
-| scripted (experimenter) | 0.878 | 401,348 |
-| oracle (strong reference) | 1.000 | 445,569 |
+| naive (no discovery) | 0.021 | 14,346 |
+| scripted (experimenter) | 0.066 | 46,105 |
+| oracle (LTV-optimal reference) | 1.000 | 691,176 |
 
-Discovery is the binding skill: disciplined experimentation captures **88%** of the
-reference while no-discovery gets **7.6%** — a ~12× profit gap that's skill, not luck.
-Run it yourself: `python3 -c "from sim import ablation_gate; ablation_gate()"`.
+Two skills stack here. Disciplined **discovery** (scripted vs naive) is ~3× better — but
+both sit far below the oracle, because the **subscription/LTV** game (acquire-then-coast,
+price for retention, don't burn cash on a saturated finite market) is a deeper skill
+neither heuristic captures. That leaves wide headroom for RL — scripted reaches only ~7%
+of the ceiling. Run it yourself: `python3 -c "from sim import ablation_gate; ablation_gate()"`.
 
 **Frontier-model leaderboard (v1 market, HUD, 3 seeds)** — all far below the scripted
 baseline, leaving wide headroom for RL:
