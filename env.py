@@ -307,6 +307,18 @@ async def end_round() -> dict[str, Any]:
     if action.get("build") is not None and quality != 1.0:
         _ENV.built[action["build"]] = quality
 
+    # Store per-round results in the action log for replay viewer
+    # (profit includes recurring subscription revenue, not just campaign P&L)
+    action["round_profit"] = round(profit, 2)
+    action["cash_after"] = round(obs["cash"], 2)
+    action["total_profit"] = round(_ENV.total_profit, 2)
+    # Store campaign results from obs (has audience/revenue from the step)
+    for i, camp_obs in enumerate(obs.get("per_campaign", [])):
+        if i < len(action.get("campaigns", [])):
+            for k in ("audience", "impressions", "tries", "purchases", "revenue"):
+                if k in camp_obs:
+                    action["campaigns"][i][k] = camp_obs[k]
+
     _CURRENT_ROUND_ACTION = {}
     return {
         "round": obs["round"],

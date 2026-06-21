@@ -99,7 +99,7 @@ canvas{width:100%!important;height:100%!important}
       <div class="panel-body"><table id="campaignTable"><tbody></tbody></table></div>
     </div>
     <div class="panel" style="margin-top:16px">
-      <div class="panel-header">📈 Ad Spend vs Revenue (per round)</div>
+      <div class="panel-header">📈 Profit Per Round (incl. recurring subscribers)</div>
       <div class="panel-body">
         <div class="chart-container"><canvas id="profitChart"></canvas></div>
       </div>
@@ -335,14 +335,19 @@ function renderRound() {
     });
   }
 
-  // Chart: per-round ad spend (red) vs ad revenue (green)
+  // Chart: per-round total profit (includes recurring subscription revenue)
   profitHistory = [];
   for (let i = 0; i < manifest.rounds; i++) {
     const a = manifest.actions[i];
-    let spend = 0, revenue = 0;
-    if (a && a.campaigns) a.campaigns.forEach(c => { spend += (c.spend||0); revenue += (c.revenue||0); });
-    if (a && a.build !== null && a.build !== undefined) spend += 300;
-    profitHistory.push({spend, revenue});
+    // Use stored round_profit if available (includes recurring); fall back to campaign-only
+    if (a && a.round_profit !== undefined) {
+      profitHistory.push({profit: a.round_profit, hasRecurring: true});
+    } else {
+      let spend = 0, revenue = 0;
+      if (a && a.campaigns) a.campaigns.forEach(c => { spend += (c.spend||0); revenue += (c.revenue||0); });
+      if (a && a.build !== null && a.build !== undefined) spend += 300;
+      profitHistory.push({profit: revenue - spend, hasRecurring: false});
+    }
   }
   drawChart();
 
@@ -381,40 +386,35 @@ function drawChart() {
   ctx.clearRect(0, 0, W, H);
 
   if (profitHistory.length === 0) return;
-  const maxV = Math.max(...profitHistory.map(p => Math.max(p.spend, p.revenue)), 1);
-  const groupW = (W - 60) / profitHistory.length;
-  const barW = Math.max(4, groupW * 0.35);
-  const gap = Math.max(1, groupW * 0.05);
+  const maxV = Math.max(...profitHistory.map(p => Math.abs(p.profit)), 1);
+  const barW = Math.max(8, (W - 60) / profitHistory.length - 4);
+  const zeroY = H * 0.55;
 
-  // axis
+  // Zero line
   ctx.strokeStyle = '#1e2130'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(40, H - 20); ctx.lineTo(W, H - 20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(40, zeroY); ctx.lineTo(W, zeroY); ctx.stroke();
 
   profitHistory.forEach((p, i) => {
-    const x = 50 + i * groupW;
+    const x = 50 + i * (barW + 4);
+    const barH = (Math.abs(p.profit) / maxV) * (H * 0.45);
+    const y = p.profit >= 0 ? zeroY - barH : zeroY;
     const active = i <= currentRound;
-    // Spend bar (left, red)
-    const spendH = (p.spend / maxV) * (H - 30);
-    ctx.fillStyle = active ? '#ef444488' : '#1e2130';
-    ctx.beginPath(); ctx.roundRect(x, H - 20 - spendH, barW, spendH, 2); ctx.fill();
-    // Revenue bar (right, green)
-    const revH = (p.revenue / maxV) * (H - 30);
-    ctx.fillStyle = active ? '#38ef7d88' : '#1e2130';
-    ctx.beginPath(); ctx.roundRect(x + barW + gap, H - 20 - revH, barW, revH, 2); ctx.fill();
+    ctx.fillStyle = active ? (p.profit >= 0 ? '#38ef7d' : '#ef4444') : '#1e2130';
+    ctx.beginPath(); ctx.roundRect(x, y, barW, barH, 3); ctx.fill();
     // Label
     ctx.fillStyle = i === currentRound ? '#fff' : '#6b7084';
     ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(`R${i+1}`, x + barW + gap/2, H - 4);
+    ctx.fillText(`R${i+1}`, x + barW/2, H - 4);
   });
 
-  // Legend
-  ctx.fillStyle = '#ef4444'; ctx.fillRect(50, 4, 10, 10);
-  ctx.fillStyle = '#6b7084'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
-  ctx.fillText('Spend', 64, 13);
-  ctx.fillStyle = '#38ef7d'; ctx.fillRect(110, 4, 10, 10);
-  ctx.fillStyle = '#6b7084'; ctx.fillText('Ad Revenue', 124, 13);
-  ctx.fillStyle = '#6b7084'; ctx.font = '9px sans-serif';
-  ctx.fillText('(subscription revenue not shown per-round)', 200, 13);
+  ctx.fillStyle = '#6b7084'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+  ctx.fillText('$0', 36, zeroY + 4);
+
+  // Note if data is campaign-only (old manifests)
+  if (profitHistory.some(p => !p.hasRecurring)) {
+    ctx.fillStyle = '#6b7084'; ctx.font = '9px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('⚠ Old data — showing campaign P&L only (re-run for full profit)', 50, 13);
+  }
 }
 
 function prevRound() { if (currentRound > 0) { currentRound--; renderRound(); } }
