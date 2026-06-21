@@ -7,10 +7,24 @@ backend: **Gemini (and Gemma) on Vertex AI**.
 | File | Fireworks equivalent | What |
 |------|----------------------|------|
 | `agent_vertex.py` | `agent.py` | Single-agent inference harness (Gemini/Gemma on Vertex AI) |
-| `rft_gcp.py` | `rft.py` | Rejection-sampling fine-tuning via **Vertex AI supervised tuning** (+ offline `--selftest`) |
+| `rft_gcp.py` | `rft.py` | Reward-filtered **SFT** via Vertex AI supervised tuning (+ offline `--selftest`) |
+| `rl_grpo.py` | — | **True RL** via GRPO on Gemma open weights (+ offline `--selftest`) |
 
-Both files are **self-contained** (import only from `sim.py` / `run.py`) so they evolve
-independently of the Fireworks pipeline.
+All three are **self-contained** (import only from `sim.py` / `run.py`, with `rl_grpo.py`
+also reusing prompt helpers from `agent_vertex.py`) so they evolve independently of the
+Fireworks pipeline.
+
+### SFT vs RL — which is which
+
+- `rft_gcp.py` (and `rft.py`) do **reward-*filtered* SFT** (STaR / expert iteration):
+  sample trajectories, keep the winners, supervised-finetune on them. Reward is only a
+  *filter* — it never pushes *down* bad actions, and there's no advantage or KL term.
+  Mechanically it's SFT. Great as a warm-start.
+- `rl_grpo.py` does **true policy-gradient RL** (GRPO): group-relative advantage +
+  PPO-style clipped surrogate + KL-to-reference. Good episodes are reinforced, bad ones
+  actively suppressed. This requires **open weights** (Gemma) — you can't gradient-RL a
+  closed model like Gemini, and Vertex's managed RLHF is deprecated.
+- Standard recipe: **SFT init → RL** (warm-start with `rft_gcp.py`, then `rl_grpo.py`).
 
 ## Setup
 
@@ -51,6 +65,45 @@ Writes `rft_gcp_out/sft_iter*.jsonl` (curated chat datasets) and `rft_gcp_out/cu
 The fine-tune step (`finetune_vertex`) converts winners to Vertex tuning JSONL, stages
 them on GCS, launches a `client.tunings.tune(...)` job, polls to completion, and returns
 the tuned model endpoint — which is fed straight back in as the next iteration's model.
+
+## True RL (GRPO) — `rl_grpo.py`
+
+Genuine policy-gradient RL with verifiable rewards: per world, sample a GROUP of full
+episodes, grade each with the verifier, compute a group-relative advantage (no critic),
+and update the policy with a clipped surrogate + KL. FirmBench's verifier *is* the reward.
+
+```bash
+# Offline RL demo — no GPU/torch. The REAL GRPO loop optimizes a categorical policy over
+# FirmBench probe->exploit schedules; held-out reward bends as it learns the optimum.
+python3 rl_grpo.py --selftest --iterations 40
+#   iter  0   0.388
+#   iter 40   0.520   (learns switch round k≈7; +34% on held-out seeds)
+
+# Real GRPO on Gemma open weights — needs a GPU.
+pip install -r requirements-rl.txt
+export RL_BASE_MODEL=google/gemma-2-2b-it
+python3 rl_grpo.py --run --iterations 30 --group-size 8 \
+    --train-seeds 8 --eval-seeds 8
+```
+
+Writes `rl_grpo_out/grpo_curve.json` and (for `--run`) a `grpo_gemma_lora/` adapter.
+Multi-turn credit assignment is trajectory-level: the episode's group-relative advantage
+is broadcast across every turn's tokens.
+
+### Running GRPO as a Vertex AI custom-training job
+
+Vertex's managed RLHF is deprecated, so on-weights RL runs as a **custom-training job**
+(your container, Vertex's GPU). Package `rl_grpo.py --run` into a training container and
+submit with a GPU machine type (e.g. `g2-standard-12` + L4, or an A100), e.g.:
+
+```bash
+gcloud ai custom-jobs create --region="$GOOGLE_CLOUD_LOCATION" \
+    --display-name=firmbench-grpo \
+    --worker-pool-spec=machine-type=g2-standard-12,accelerator-type=NVIDIA_L4,accelerator-count=1,container-image-uri=YOUR_IMAGE
+```
+
+The resulting LoRA adapter can be merged and deployed to a Vertex endpoint, then used for
+inference via the OpenAI-compatible path below.
 
 ## Running it through HUD
 
