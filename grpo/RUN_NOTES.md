@@ -28,3 +28,20 @@
 ## Curve (held-out mean reward)
 - base glm-5p1 (held-out, K=4): **0.533** (std 0.43, intra 0.34); train: 0.653
 - trained: (after job completes)
+
+## Progress observations (05:22 UTC)
+- Job healthy, slow: epoch-0 baseline eval running 8 parallel runs x 24 rollouts
+  (group size 8), ~7-15s/rollout (glm-5p1 reasoning at 4096 tokens). ~30 min/epoch-eval
+  + training rollouts -> full 4-epoch run likely 3-5 hrs.
+- jobProgress.percent (6%) and token counters lag (don't reflect eval phase) — true
+  progress is in the per-epoch streamlogs / epoch_to_evaluation_output.
+- monitor.sh (PID logged) polls every 10 min -> monitor.log; auto-runs held-out eval
+  on the output model when training completes. job_final.json saved on completion.
+- The per-epoch eval rewards (epoch 0..3) form the learning curve; base held-out 0.533.
+
+## RESTART -> leaner v2 (05:37 UTC)
+- v1 (emjcrkg5) killed: pathologically slow (110min, epoch-0 baseline eval not done,
+  individual rollouts spiking to ~15min). Heavy: group 8 + 4096 tokens + eval-every-epoch.
+- v2 job: **qxcfrbww**, output **accounts/bennyjxh/models/firmbench-glm5p1-grpo-v2**
+  GRPO, lora16, epochs 3, candidates 4 (was 8), max_output_tokens 3072 (was 4096),
+  max_concurrent_rollouts 16 (was 8). Expect ~3-4x faster.
