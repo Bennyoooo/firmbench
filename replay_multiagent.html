@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FirmBench Multi-Agent Replay</title>
+<style>
+:root{--bg:#0a0b0f;--card:#13151c;--border:#1e2130;--text:#c8cad0;--dim:#6b7084;
+  --accent:#667eea;--green:#38ef7d;--red:#ef4444;--gold:#f59e0b;--purple:#a78bfa}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--bg);color:var(--text);min-height:100vh;padding:20px}
+h1{font-size:24px;font-weight:700;color:#fff;margin-bottom:4px}
+.subtitle{color:var(--dim);font-size:13px;margin-bottom:20px}
+.controls{display:flex;gap:12px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
+select,button{background:var(--card);color:var(--text);border:1px solid var(--border);
+  padding:8px 16px;border-radius:8px;font-size:13px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.round-nav{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.round-btn{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:11px;font-weight:600;padding:0}
+.round-btn.current{background:var(--accent);color:#fff;border-color:var(--accent)}
+.round-btn.past{border-color:var(--green);color:var(--green)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:16px}
+.panel-header{padding:13px 18px;border-bottom:1px solid var(--border);font-size:13px;
+  font-weight:600;color:#fff;display:flex;justify-content:space-between}
+.panel-body{padding:16px}
+.metric{display:flex;justify-content:space-between;padding:6px 0;
+  border-bottom:1px solid var(--border);font-size:13px}
+.metric:last-child{border:none}
+.metric-label{color:var(--dim)}
+.metric-value{font-weight:600;font-variant-numeric:tabular-nums}
+.positive{color:var(--green)}.negative{color:var(--red)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;color:var(--dim);font-weight:500;padding:7px 5px;border-bottom:1px solid var(--border)}
+td{padding:7px 5px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
+.chart-container{height:180px;position:relative;padding:8px 0}
+canvas{width:100%!important;height:100%!important}
+.empty{text-align:center;color:var(--dim);padding:28px;font-size:13px}
+.tag{display:inline-block;font-size:10px;padding:2px 8px;border-radius:10px;margin:2px;
+  background:rgba(102,126,234,0.15);color:var(--accent)}
+.status-bar{display:flex;gap:18px;padding:12px 18px;background:var(--card);
+  border:1px solid var(--border);border-radius:12px;margin-bottom:16px;font-size:13px;flex-wrap:wrap}
+.status-item{display:flex;gap:6px;align-items:center}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.dot-green{background:var(--green)}.dot-red{background:var(--red)}.dot-gold{background:var(--gold)}
+/* blackboard */
+.msg{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);align-items:flex-start}
+.msg:last-child{border:none}
+.role-badge{flex:0 0 auto;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+  padding:3px 8px;border-radius:6px;min-width:88px;text-align:center}
+.role-coordinator{background:rgba(245,158,11,.15);color:var(--gold)}
+.role-builder{background:rgba(102,126,234,.15);color:var(--accent)}
+.role-pricer{background:rgba(56,239,125,.13);color:var(--green)}
+.role-marketer{background:rgba(167,139,250,.15);color:var(--purple)}
+.msg-text{font-size:13px;line-height:1.5;padding-top:2px}
+.role-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+.role-row:last-child{border:none}
+.role-act{color:var(--dim);font-variant-numeric:tabular-nums}
+/* coordination tax bar */
+.taxbar{height:26px;border-radius:6px;background:#0f1117;overflow:hidden;position:relative;border:1px solid var(--border)}
+.taxbar-fill{height:100%;background:linear-gradient(90deg,#38ef7d,#667eea)}
+.taxbar-label{position:absolute;top:0;left:8px;right:8px;height:100%;display:flex;
+  align-items:center;justify-content:space-between;font-size:11px;color:#fff;font-weight:600}
+#loading{text-align:center;padding:80px;color:var(--dim)}
+.hero{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.hero-card{flex:1;min-width:140px;background:var(--card);border:1px solid var(--border);
+  border-radius:12px;padding:14px 18px}
+.hero-val{font-size:26px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums}
+.hero-lbl{font-size:11px;color:var(--dim);margin-top:2px}
+</style>
+</head>
+<body>
+
+<h1>🏢🤝 FirmBench Multi-Agent Replay</h1>
+<p class="subtitle">Coordinator · Builder · Pricer · Marketer — watch the team coordinate over the shared blackboard (Phase D)</p>
+
+<div class="controls">
+  <label>Episode: <select id="seedSelect"><option>Loading...</option></select></label>
+  <div class="round-nav" id="roundNav"></div>
+  <button id="playBtn" onclick="togglePlay()">▶ Play</button>
+  <button onclick="prevRound()">← Prev</button>
+  <button onclick="nextRound()">Next →</button>
+</div>
+
+<div class="hero" id="hero"></div>
+<div class="status-bar" id="statusBar"></div>
+
+<div class="grid">
+  <!-- Left: the coordination story -->
+  <div>
+    <div class="panel">
+      <div class="panel-header"><span>📋 Blackboard — this round</span><span id="bbRound"></span></div>
+      <div class="panel-body" id="blackboard"><div class="empty">No messages</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">🎬 Role Actions</div>
+      <div class="panel-body" id="roleActions"></div>
+    </div>
+  </div>
+
+  <!-- Right: outcomes -->
+  <div>
+    <div class="panel">
+      <div class="panel-header">📊 Campaign Results (Marketer)</div>
+      <div class="panel-body"><table id="campaignTable"><tbody></tbody></table></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">📈 Round Profit</div>
+      <div class="panel-body"><div class="chart-container"><canvas id="profitChart"></canvas></div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span>🪙 Coordination Tax</span><span id="taxPct"></span></div>
+      <div class="panel-body">
+        <div class="taxbar"><div class="taxbar-fill" id="taxFill"></div>
+          <div class="taxbar-label"><span id="taxTeam"></span><span id="taxOracle"></span></div></div>
+        <p style="color:var(--dim);font-size:11px;margin-top:8px">
+          tax = oracle − team profit. A perfectly coordinated team approaches the full-info oracle;
+          the gap is what poor coordination (unread messages, wasted budget) costs.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="loading">
+  Serve this directory: <code>python3 -m http.server 8000</code><br>
+  then open <code>http://localhost:8000/replay_multiagent.html</code><br>
+  (run <code>python3 env_multiagent.py</code> first to generate <code>artifacts_multiagent/&lt;seed&gt;/manifest.json</code>)
+</div>
+
+<script>
+let manifest = null, currentRound = 0, playing = false, playInterval = null;
+const ROLES = ["coordinator","builder","pricer","marketer"];
+
+async function loadSeeds() {
+  const seeds = [];
+  for (let s of [42,123,7,1,2,3,4,5,100,101,102,103]) {
+    try { const r = await fetch(`artifacts_multiagent/${s}/manifest.json`); if (r.ok) seeds.push(s); } catch(e) {}
+  }
+  const sel = document.getElementById('seedSelect');
+  sel.innerHTML = '';
+  if (!seeds.length) { sel.innerHTML = '<option>No episodes found</option>'; return; }
+  seeds.forEach(s => { const o=document.createElement('option'); o.value=s; o.textContent=`Seed ${s}`; sel.appendChild(o); });
+  sel.onchange = () => loadEpisode(parseInt(sel.value));
+  loadEpisode(seeds[0]);
+}
+
+async function loadEpisode(seed) {
+  document.getElementById('loading').style.display = 'none';
+  manifest = await (await fetch(`artifacts_multiagent/${seed}/manifest.json`)).json();
+  currentRound = 0;
+  renderHero();
+  renderRound();
+}
+
+function renderHero() {
+  const h = document.getElementById('hero');
+  const de = manifest.disc_eff, tax = manifest.coordination_tax;
+  h.innerHTML = `
+    <div class="hero-card"><div class="hero-val">${(de*100).toFixed(1)}%</div><div class="hero-lbl">team disc.eff (profit ÷ oracle)</div></div>
+    <div class="hero-card"><div class="hero-val">$${fmt(manifest.team_profit)}</div><div class="hero-lbl">team profit</div></div>
+    <div class="hero-card"><div class="hero-val">$${fmt(manifest.oracle_profit)}</div><div class="hero-lbl">oracle ceiling</div></div>
+    <div class="hero-card"><div class="hero-val negative">$${fmt(tax)}</div><div class="hero-lbl">coordination tax</div></div>`;
+}
+
+function buildRoundNav() {
+  const nav = document.getElementById('roundNav'); nav.innerHTML = '';
+  for (let i=0;i<manifest.rounds;i++){
+    const b=document.createElement('button');
+    b.className='round-btn'+(i===currentRound?' current':(i<currentRound?' past':''));
+    b.textContent=i+1; b.onclick=()=>{currentRound=i;renderRound();}; nav.appendChild(b);
+  }
+}
+
+function renderRound() {
+  buildRoundNav();
+  const a = manifest.actions[currentRound]; if (!a) return;
+
+  // cumulative profit from round_profit
+  let cum = 0; for (let i=0;i<=currentRound;i++) cum += (manifest.actions[i].round_profit||0);
+  document.getElementById('statusBar').innerHTML = `
+    <div class="status-item"><span class="dot dot-gold"></span> Round ${currentRound+1}/${manifest.rounds}</div>
+    <div class="status-item">💰 Cumulative: <span class="${cum>=0?'positive':'negative'}">$${fmt(cum)}</span></div>
+    <div class="status-item">📈 Round profit: <span class="${(a.round_profit||0)>=0?'positive':'negative'}">$${fmt(a.round_profit||0)}</span></div>
+    <div class="status-item">🎯 Final reward: ${manifest.final_reward.toFixed(3)}</div>`;
+
+  // blackboard
+  document.getElementById('bbRound').textContent = `round ${currentRound+1}`;
+  const bb = document.getElementById('blackboard');
+  const msgs = a.messages || [];
+  bb.innerHTML = msgs.length ? msgs.map(m =>
+    `<div class="msg"><span class="role-badge role-${m.role}">${m.role}</span><span class="msg-text">${esc(m.text)}</span></div>`
+  ).join('') : '<div class="empty">No messages posted this round</div>';
+
+  // role actions
+  const fname = (i)=> (manifest.feature_names && manifest.feature_names[i]!=null) ? manifest.feature_names[i] : `feature ${i}`;
+  const camps = a.campaigns || [];
+  const targets = [...new Set(camps.flatMap(c=>c.target||[]))].sort((x,y)=>x-y);
+  const pn = (p)=> (manifest.pain_names && manifest.pain_names[p]!=null) ? manifest.pain_names[p] : p;
+  document.getElementById('roleActions').innerHTML = `
+    <div class="role-row"><span class="role-badge role-coordinator">coordinator</span>
+      <span class="role-act">budget $${a.budget!=null?fmt(a.budget):'—'}</span></div>
+    <div class="role-row"><span class="role-badge role-builder">builder</span>
+      <span class="role-act">${a.build!=null?('build '+esc(fname(a.build))):'no build'}</span></div>
+    <div class="role-row"><span class="role-badge role-pricer">pricer</span>
+      <span class="role-act">price $${(a.price||0).toFixed(0)}</span></div>
+    <div class="role-row"><span class="role-badge role-marketer">marketer</span>
+      <span class="role-act">${camps.length} campaign(s) → ${targets.map(p=>`<span class="tag">${esc(''+pn(p))}</span>`).join('')||'—'}</span></div>`;
+
+  // campaign results table
+  const tb = document.querySelector('#campaignTable tbody');
+  if (!camps.length) { tb.innerHTML = '<tr><td class="empty">No campaigns this round</td></tr>'; }
+  else {
+    tb.innerHTML = `<tr><th>Target</th><th>Ch</th><th>Audience</th><th>Tries</th><th>Purch.</th><th>Revenue</th></tr>` +
+      camps.map(c => `<tr>
+        <td>${(c.target||[]).map(p=>`<span class="tag">${esc(''+pn(p))}</span>`).join('')}</td>
+        <td>${c.channel??'—'}</td><td>${c.audience??'—'}</td><td>${c.tries??'—'}</td>
+        <td>${c.purchases??'—'}</td>
+        <td class="${(c.revenue||0)>(c.spend||0)?'positive':''}">$${fmt(c.revenue||0)}</td></tr>`).join('');
+  }
+
+  drawChart();
+  renderTax();
+}
+
+function renderTax() {
+  const team = Math.max(0, manifest.team_profit), orc = Math.max(1, manifest.oracle_profit);
+  const pct = Math.min(100, team/orc*100);
+  document.getElementById('taxFill').style.width = pct.toFixed(1)+'%';
+  document.getElementById('taxTeam').textContent = `team $${fmt(team)} (${pct.toFixed(1)}%)`;
+  document.getElementById('taxOracle').textContent = `oracle $${fmt(orc)}`;
+  document.getElementById('taxPct').textContent = `${(100-pct).toFixed(1)}% tax`;
+}
+
+function drawChart() {
+  const canvas = document.getElementById('profitChart'), ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio||1, rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width*dpr; canvas.height = 180*dpr; ctx.scale(dpr,dpr);
+  const W = rect.width, H = 180; ctx.clearRect(0,0,W,H);
+  const rp = manifest.actions.map(a=>a.round_profit||0);
+  const maxV = Math.max(...rp.map(Math.abs),1), barW = Math.max(7,(W-60)/rp.length-4), zeroY = H*0.6;
+  ctx.strokeStyle='#1e2130'; ctx.beginPath(); ctx.moveTo(40,zeroY); ctx.lineTo(W,zeroY); ctx.stroke();
+  rp.forEach((v,i)=>{
+    const x=50+i*(barW+4), barH=(Math.abs(v)/maxV)*(H*0.5), y=v>=0?zeroY-barH:zeroY;
+    ctx.fillStyle = i<=currentRound ? (v>=0?'#38ef7d':'#ef4444') : '#1e2130';
+    ctx.beginPath(); ctx.roundRect(x,y,barW,barH,3); ctx.fill();
+    ctx.fillStyle = i===currentRound?'#fff':'#6b7084'; ctx.font='10px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(`R${i+1}`, x+barW/2, H-3);
+  });
+  ctx.fillStyle='#6b7084'; ctx.font='10px sans-serif'; ctx.textAlign='right'; ctx.fillText('$0',36,zeroY+4);
+}
+
+function prevRound(){ if(currentRound>0){currentRound--;renderRound();} }
+function nextRound(){ if(manifest && currentRound<manifest.rounds-1){currentRound++;renderRound();} }
+function togglePlay(){
+  playing=!playing;
+  const b=document.getElementById('playBtn'); b.textContent=playing?'⏸ Pause':'▶ Play'; b.classList.toggle('active',playing);
+  if(playing){ playInterval=setInterval(()=>{ if(currentRound<manifest.rounds-1){currentRound++;renderRound();} else togglePlay(); },1400); }
+  else clearInterval(playInterval);
+}
+function fmt(n){ return Math.round(n).toLocaleString(); }
+function esc(s){ return (''+(s??'')).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+loadSeeds();
+</script>
+</body>
+</html>

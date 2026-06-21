@@ -158,13 +158,20 @@ class HudBackend:
         self._create_agent = create_agent
         self.client = TrainingClient(model)
 
-    def _agent(self, temperature):
+    def _agent(self, temperature, trainable=True):
         # openai_compatible (Tinker) config ignores a top-level `temperature` — it
         # lives in completion_kwargs — and defaults max_steps=10 (too few for a full
         # episode). Set both explicitly. Unknown kwargs are ignored by other agent types.
+        #
+        # extra_body={"return_token_ids": True} is REQUIRED for training: the
+        # openai_compatible agent only records per-turn token-level samples (token ids +
+        # sampling logprobs) when token ids are requested — without it, forward_backward
+        # rejects the batch with "no trainable turns". Harmless for eval (samples ignored).
+        completion_kwargs = {"temperature": temperature}
+        if trainable:
+            completion_kwargs["extra_body"] = {"return_token_ids": True}
         return self._create_agent(
-            self.model, max_steps=self.max_steps,
-            completion_kwargs={"temperature": temperature})
+            self.model, max_steps=self.max_steps, completion_kwargs=completion_kwargs)
 
     def _tasks(self, seeds):
         from env import market_discovery

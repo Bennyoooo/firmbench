@@ -200,11 +200,18 @@ async def end_round() -> dict[str, Any]:
     """Commit the staged role actions: assemble {build, price, campaigns} and step the firm.
     Returns the round profit and the Marketer's per-campaign diagnostics (audience, tries,
     purchases, bounce reasons) — the discovery signal for next round."""
+    # capture the round's coordination story BEFORE commit() clears the blackboard/stash
+    messages = [dict(m) for m in _MENV.bb.msgs]
+    budget = _MENV._budget
     _obs, profit, done, committed = _MENV.commit()
-    _ROUND_LOG.append({"build": committed["build"], "price": committed["price"],
-                       "campaigns": [{"target": sorted(c["target"]), "spend": c["spend"],
-                                      "channel": c["channel"], "craft": c["craft"]}
-                                     for c in committed["campaigns"]]})
+    _ROUND_LOG.append({
+        "build": committed["build"],
+        "price": committed["price"],
+        "budget": (round(budget, 2) if budget is not None else None),
+        "messages": messages,                              # blackboard: who said what
+        "campaigns": _MENV._last_per_campaign,             # results: audience/tries/purchases/revenue
+        "round_profit": round(profit, 2),
+    })
     mk = _MENV.role_obs("marketer")
     return {"round": _MENV.round, "round_profit": round(profit, 2),
             "cash": mk["cash"], "price": mk["price"], "built_features": mk["built_features"],
