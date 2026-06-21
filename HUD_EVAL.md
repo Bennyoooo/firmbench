@@ -23,20 +23,29 @@ python3 -m hud eval tasks.py openai_compatible \
   --task-ids market_discovery_seed42 --max-steps 80 -y
 ```
 
-## Eval the FINE-TUNED checkpoint
+## Eval the FINE-TUNED checkpoint (GRPO model)
 
-Identical command, just swap `--model` to the GRPO output model:
+The trained model is `accounts/bennyjxh/models/firmbench-qwen3-8b-grpo-v4` (LoRA-GRPO on
+qwen3-8b). qwen3-8b is **not serverless**, so it is served via a dedicated LoRA
+deployment (`f81fmqll`, scale-to-zero) and addressed with the `#deployment` routing
+suffix. **Verified**: `hud eval` drives this checkpoint against `env.py` end-to-end.
 
 ```bash
+TUNED="accounts/bennyjxh/models/firmbench-qwen3-8b-grpo-v4#accounts/bennyjxh/deployments/f81fmqll"
 python3 -m hud eval tasks.py openai_compatible \
-  --model accounts/bennyjxh/models/firmbench-glm5p1-grpo-v1 \
+  --model "$TUNED" \
   --config base_url=https://api.fireworks.ai/inference/v1 \
-  --task-ids market_discovery_seed42,market_discovery_seed123,market_discovery_seed7 \
-  --max-steps 80 --group-size 1 -y
+  --task-ids market_discovery_seed42 --max-steps 80 -y
 ```
 
-(glm-5p1 supports serverless LoRA serving, so the fine-tuned adapter is callable by id
-with no dedicated deployment.)
+The deployment is scale-to-zero: the first request after idle has a ~1-2 min cold start,
+then runs; it costs nothing while idle.
+
+> Note: this checkpoint was trained on the **single-turn strategy** task (see
+> `grpo/RESULTS.md`), where its reward improved base 0.147 → 0.529 on held-out worlds.
+> `tasks.py` is the **multi-turn** discovery env, so HUD eval here is an
+> out-of-distribution transfer check (the integration/plumbing is the deliverable; the
+> learning evidence is the strategy-task curve in RESULTS.md).
 
 ## Notes
 
