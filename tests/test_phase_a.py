@@ -120,6 +120,35 @@ def test_quality_bar_emits_distinct_bounce_signal():
     assert r["purchases"] < 0.5 * r["tries"]             # low quality suppresses conversion
 
 
+# ----------------------------- Step 6: LTV / retention -----------------------------
+
+def test_base_persists_and_churns():
+    from collections import defaultdict
+    cfg = Config.phase_a(); w = generate_world(1, cfg); env = FirmEnv(w)
+    p = _popular_pain(w, cfg)
+    wt = defaultdict(float)
+    for i in w.users_by_pain[p]:
+        wt[w.users[i].channel_pref] += 1
+    ch = max(wt, key=wt.get)
+    # acquire subscribers: build the solving feature, fair price, big campaign on modal channel
+    env.step({"build": w.solves[p], "price": 40.0,
+              "campaigns": [{"target": {p}, "spend": 3000.0, "channel": ch}]})
+    acquired = sum(env.base.values())
+    assert acquired > 0, "should acquire subscribers into the base"
+    # next round, no campaigns: recurring revenue > 0 and base decays via churn
+    obs, profit, done, _ = env.step({"build": None, "price": 40.0, "campaigns": []})
+    assert profit > 0, "recurring revenue from retained subscribers"
+    assert sum(env.base.values()) < acquired, "churn applied to the base"
+
+def test_segment_id_not_leaked_to_agent():
+    cfg = Config.phase_a(); w = generate_world(1, cfg); env = FirmEnv(w)
+    p = _popular_pain(w, cfg)
+    obs, _, _, _ = env.step({"build": None, "price": 40.0,
+                             "campaigns": [{"target": {p}, "spend": 500.0, "channel": 0}]})
+    assert obs["per_campaign"], "campaign should be reported"
+    assert all(not k.startswith("_") for k in obs["per_campaign"][0]), "no internal keys leaked"
+
+
 if __name__ == "__main__":
     import traceback
     fails = 0

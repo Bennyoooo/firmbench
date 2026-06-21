@@ -326,6 +326,7 @@ class FirmEnv:
         self.round = 0
         self.done = False
         self.total_profit = 0.0
+        self.base = {}           # segment_id -> expected active subscribers (LTV; latent)
         return self._state_obs(per_campaign=[])
 
     def _state_obs(self, per_campaign):
@@ -377,6 +378,7 @@ class FirmEnv:
         purchases = 0.0
         bounced_quality = 0.0      # resonated + reached, but blocked by the quality bar
         bounced_price = 0.0        # passed quality, but lost on price
+        by_segment = {}            # internal: new conversions per segment (for LTV base)
         for idx in reached:
             u = self.w.users[idx]
             resonance = len(target & u.pains) / len(u.pains)
@@ -386,8 +388,11 @@ class FirmEnv:
                 if cfg.use_channels else 1.0
             p_try = craft * ch * resonance       # craft now applies in the LIVE funnel (bug fix)
             p_buy = self._p_buy(u)
+            contrib = p_try * p_buy
             tries += p_try
-            purchases += p_try * p_buy
+            purchases += contrib
+            if cfg.use_retention:
+                by_segment[u.segment_id] = by_segment.get(u.segment_id, 0.0) + contrib
             # bounce-reason diagnostics: make quality vs price failures separately
             # observable (the C1 separability fix). Heuristic signals, not exact partition.
             if cfg.use_quality_bar or cfg.use_elasticity:
@@ -402,6 +407,7 @@ class FirmEnv:
                 "tries": round(tries, 2), "purchases": round(purchases, 2),
                 "bounced_quality": round(bounced_quality, 2),
                 "bounced_price": round(bounced_price, 2),
+                "_by_segment": by_segment,                 # internal: stripped before the agent sees it
                 "revenue": round(revenue, 2), "spend": spend}
 
     def step(self, action: dict):
@@ -421,7 +427,15 @@ class FirmEnv:
             build_cost = cfg.build_cost
             self.built[f] = 1.0       # structured phase: full implementation quality
 
+        # LTV: existing subscribers re-pay (recurring revenue) at the current price.
+        retention = cfg.use_retention and cfg.subscription
+        if retention and self.base:
+            recurring = sum(self.base.values()) * self.price
+            self.cash += recurring
+            revenue += recurring
+
         per_campaign = []
+        new_subs = {}            # segment_id -> conversions acquired this round
         for c in action.get("campaigns", []) or []:
             spend = float(c.get("spend", 0.0))
             spend = max(0.0, min(spend, self.cash))   # can't overspend cash
@@ -431,7 +445,15 @@ class FirmEnv:
             self.cash += res["revenue"]
             revenue += res["revenue"]
             spend_total += spend
-            per_campaign.append(res)
+            for s, q in res.get("_by_segment", {}).items():
+                new_subs[s] = new_subs.get(s, 0.0) + q
+            # never leak internal (underscore) keys — e.g. per-segment attribution — to the agent
+            per_campaign.append({k: v for k, v in res.items() if not k.startswith("_")})
+
+        if retention:
+            for s, q in new_subs.items():
+                self.base[s] = self.base.get(s, 0.0) + q
+            self._apply_churn()       # responsive + segment-varied
 
         profit = revenue - spend_total - build_cost
         self.total_profit += profit
@@ -439,6 +461,30 @@ class FirmEnv:
         if self.round >= cfg.horizon or self.cash < 0:
             self.done = True
         return self._state_obs(per_campaign), profit, self.done, {}
+
+    def _seg_avg_ff(self, seg) -> float:
+        """Segment-level 'fraction of needs met' (affinity-weighted), drives churn."""
+        tot = sum(seg.pain_affinity)
+        if tot <= 0:
+            return 0.0
+        got = 0.0
+        for p, w in enumerate(seg.pain_affinity):
+            got += w * self.built.get(self.w.solves[p], 0.0)
+        return got / tot
+
+    def _apply_churn(self):
+        """Per-segment churn responsive to price (vs segment wtp) and quality (vs bar)."""
+        cfg = self.cfg
+        for s in list(self.base.keys()):
+            if self.w.segments and 0 <= s < len(self.w.segments):
+                seg = self.w.segments[s]
+                seg_wtp = math.exp(seg.wtp_mu)        # segment median willingness-to-pay
+                price_pressure = cfg.churn_price_coef * max(0.0, (self.price - seg_wtp) / seg_wtp)
+                quality_gap = cfg.churn_quality_coef * max(0.0, seg.quality_bar - self._seg_avg_ff(seg))
+                churn_eff = min(0.95, seg.churn_base + price_pressure + quality_gap)
+            else:
+                churn_eff = cfg.churn_base            # flat churn when segments are off (ablation)
+            self.base[s] *= (1.0 - churn_eff)
 
 
 # ----------------------------- helpers -----------------------------
