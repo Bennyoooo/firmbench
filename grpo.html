@@ -84,6 +84,7 @@ canvas{width:100%!important}
   </div>
 </div>
 
+<div id="runReplaySection">
 <h3 style="font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Run replays (click to view)</h3>
 <div id="leaderboard" class="leaderboard"></div>
 
@@ -124,6 +125,15 @@ canvas{width:100%!important}
   <div class="panel-header"><span>💵 Profit per Round</span><span style="color:var(--dim);font-weight:400">red = investing early · green = recurring revenue compounds</span></div>
   <div class="panel-body"><div style="height:170px"><canvas id="profitChart"></canvas></div></div>
 </div>
+</div><!-- /runReplaySection -->
+
+<div id="noRuns" class="panel" style="display:none">
+  <div class="panel-body" style="text-align:center;padding:48px 24px;color:var(--dim)">
+    <div style="font-size:28px;margin-bottom:10px">🎬</div>
+    <div style="font-size:15px;color:var(--text);font-weight:600;margin-bottom:6px">Run replays coming soon</div>
+    <div style="font-size:13px;max-width:440px;margin:0 auto">The training curve above is from the GRPO run. Episode-by-episode replays of the base and tuned checkpoints will appear here once the eval runs are exported.</div>
+  </div>
+</div>
 
 <script>
 let manifest = null, currentRound = 0, playing = false, playInterval = null;
@@ -139,7 +149,7 @@ const RANK_COLORS = ['#667eea','#38ef7d','#a0a0a0'];
 // ---------- Training curve ----------
 async function loadCurve() {
   let data;
-  try { data = await (await fetch('artifacts/grpo_curve.json')).json(); }
+  try { data = await (await fetch('artifacts/grpo_curve.json', {cache: 'no-store'})).json(); }
   catch(e) { document.getElementById('curveMeta').textContent = 'curve unavailable'; return; }
   const curve = (data.curve || []).map(p => ({
     x: (p.iter !== undefined ? p.iter : p.step),
@@ -215,7 +225,7 @@ async function discoverModels() {
   const candidates = ['42_qwen3-8b-base','42_qwen3-8b-grpo-ep1','42_qwen3-8b-grpo'];
   for (const c of candidates) {
     try {
-      const r = await fetch(`artifacts/${c}/manifest.json`);
+      const r = await fetch(`artifacts/${c}/manifest.json`, {cache: 'no-store'});
       if (!r.ok) continue;
       const m = await r.json();
       const key = c.substring(3);
@@ -225,9 +235,17 @@ async function discoverModels() {
     } catch(e) {}
   }
   allModels = allModels.filter(m => m.rounds > 0);
+  // No exported run replays yet — show the curve only, with an empty state.
+  if (!allModels.length) {
+    document.getElementById('runReplaySection').style.display = 'none';
+    document.getElementById('noRuns').style.display = 'block';
+    return;
+  }
+  document.getElementById('runReplaySection').style.display = '';
+  document.getElementById('noRuns').style.display = 'none';
   renderLeaderboard();
   populateModelSelect();
-  if (allModels.length) loadModel(allModels[0].dir);
+  loadModel(allModels[0].dir);
 }
 
 function renderLeaderboard() {
@@ -249,7 +267,7 @@ function populateModelSelect() {
 
 async function loadModel(dir) {
   currentDir = dir;
-  manifest = await (await fetch(`${dir}/manifest.json`)).json();
+  manifest = await (await fetch(`${dir}/manifest.json`, {cache: 'no-store'})).json();
   currentRound = 0;
   document.getElementById('modelSelect').value = dir;
   renderLeaderboard(); buildRoundNav(); renderRound();
