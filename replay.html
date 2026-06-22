@@ -142,14 +142,14 @@ async function discoverModels() {
     '42_gpt-5-5', '42_gpt-5', '42_gpt-5-mini', '42_gpt-4o',
     '42_claude', '42_claude-opus-4-8', '42_gemini',
     '42_deepseek-v4-0324', '42_glm-5-1',
-    '42_qwen3-8b-grpo', '42_qwen3-8b-base', '42_oracle', '42_scripted', '42_naive',
+    '42_oracle', '42_scripted', '42_naive',
   ];
   // Also check artifacts/42 as "Latest Run"
   modelCandidates.unshift('42');
 
   for (const c of modelCandidates) {
     try {
-      const r = await fetch(`artifacts/${c}/manifest.json`);
+      const r = await fetch(`artifacts/${c}/manifest.json`, {cache: 'no-store'});
       if (!r.ok) continue;
       const m = await r.json();
       const modelKey = c.startsWith('42_') ? c.substring(3) : c;
@@ -166,8 +166,8 @@ async function discoverModels() {
     } catch(e) {}
   }
 
-  // Filter out zero-round entries, sort by reward
-  allModels = allModels.filter(m => m.rounds > 0);
+  // Filter out zero-round entries and GRPO/qwen models (they live on the /grpo page), sort by reward
+  allModels = allModels.filter(m => m.rounds > 0 && !/qwen|grpo/i.test(m.key));
   allModels.sort((a, b) => b.reward - a.reward);
   renderLeaderboard();
   populateModelSelect();
@@ -192,7 +192,7 @@ function renderLeaderboard() {
         const rewards = [];
         for (const s of SEEDS) {
           try {
-            const r = await fetch(`artifacts/${s}_${mk}/manifest.json`);
+            const r = await fetch(`artifacts/${s}_${mk}/manifest.json`, {cache: 'no-store'});
             if (!r.ok) continue;
             const m = await r.json();
             rewards.push(m.final_reward || 0);
@@ -238,7 +238,7 @@ function populateModelSelect() {
 async function loadModel(dir) {
   currentDir = dir;
   document.getElementById('loading').style.display = 'none';
-  const r = await fetch(`${dir}/manifest.json`);
+  const r = await fetch(`${dir}/manifest.json`, {cache: 'no-store'});
   manifest = await r.json();
   currentRound = 0;
   profitHistory = [];

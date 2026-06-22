@@ -185,9 +185,9 @@ code,.mono{font-family:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,mo
   <div class="slide-inner">
     <div class="kicker rv"><span class="bar"></span> HUD Frontier / RSI · RL Environments Hackathon — HUD W25 × YC</div>
     <h1 class="rv d1"><span class="brandmark"><span class="sq"></span></span> SaaSBench</h1>
-    <p class="lede rv d2" style="margin-top:20px; font-size:clamp(18px,2.3vw,26px); color:#c5c9d6; max-width:30ch; line-height:1.3">
-      A <span class="ey">verifiable RL environment</span> where an agent runs a SaaS against a
-      <span class="grad">simulated population of real-world users — discovering hidden demand, building the product, and pricing for retention.</span>
+    <p class="lede rv d2" style="margin-top:20px; font-size:clamp(18px,2.3vw,26px); color:#c5c9d6; max-width:34ch; line-height:1.3">
+      A <span class="ey">verifiable RL environment</span> where an agent — or a team of agents — runs a SaaS company against
+      <span class="grad">up to 500,000 heterogeneous customers, graded entirely on profit.</span>
     </p>
 
     <div class="band rv d3">
@@ -201,7 +201,7 @@ code,.mono{font-family:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,mo
       </div>
       <div class="b">
         <div class="v" style="color:#fff">0</div>
-        <div class="k">LLM judges. Reward is profit, computed exactly by a 500,000-user market sim</div>
+        <div class="k">LLM judges. Reward is profit, computed exactly by a up to 500,000-user market sim</div>
       </div>
     </div>
 
@@ -249,35 +249,45 @@ code,.mono{font-family:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,mo
 <section class="slide">
   <div class="slide-inner">
     <div class="kicker rv"><span class="num">02</span><span class="bar"></span> The environment</div>
-    <h2 class="rv d1">One agent. One hidden market.<br>~16 rounds to <span class="hl">find the money.</span></h2>
+    <h2 class="rv d1">Not a demand curve —<br>a market that <span class="hl">behaves like a real one.</span></h2>
     <p class="lede rv d2" style="margin-bottom:26px">
-      Drop a single agent into a market whose demand is hidden inside a 500,000-user simulation.
-      Each episode is a brand-new randomized world. The agent runs experiments to reverse-engineer it.
+      An agent — or a team — operates a SaaS against up to 500,000 heterogeneous customers, hidden inside a
+      fresh randomized market each episode. It runs experiments to reverse-engineer it over ~16 rounds.
     </p>
 
     <div class="loop rv d3">
-      <div class="node"><div class="t">Hidden world</div><div class="d">500,000 users from hidden personas — correlated pains, willingness-to-pay, preferred channel, churn.</div><div class="ar">→</div></div>
+      <div class="node"><div class="t">Hidden world</div><div class="d">up to 500,000 users from hidden personas — correlated pains, willingness-to-pay, preferred channel, churn.</div><div class="ar">→</div></div>
       <div class="node"><div class="t">Agent acts</div><div class="d">6 MCP tools: probe, build, price, run campaigns — within a round, then commit.</div><div class="ar">→</div></div>
       <div class="node"><div class="t">Market sim</div><div class="d">A deterministic funnel runs: reach → try → buy → subscribe → churn.</div><div class="ar">→</div></div>
       <div class="node"><div class="t">Reward</div><div class="d">Per-target diagnostics + profit. Reward = profit ÷ a theoretical ceiling. Repeat.</div></div>
     </div>
 
-    <div class="split rv d4" style="margin-top:24px; grid-template-columns:1.3fr 1fr; gap:18px">
+    <div class="split rv d4" style="margin-top:24px; grid-template-columns:1fr 1fr; gap:18px">
       <div class="card">
-        <h3 style="margin-bottom:11px">What the agent must learn — all hidden</h3>
+        <h3 style="margin-bottom:11px">👥 Users — a population, not a curve</h3>
+        <p style="margin-bottom:11px; font-size:13.5px; color:var(--dim)">Every customer is unique — hidden per-user dimensions:</p>
         <div class="chips">
-          <span class="chip"><span class="dot"></span> pain → feature map</span>
-          <span class="chip"><span class="dot"></span> which segments are biggest</span>
-          <span class="chip"><span class="dot"></span> which channel reaches whom</span>
+          <span class="chip"><span class="dot"></span> their pains</span>
+          <span class="chip"><span class="dot"></span> willingness-to-pay</span>
           <span class="chip"><span class="dot"></span> price elasticity</span>
+          <span class="chip"><span class="dot"></span> reachable channel</span>
           <span class="chip"><span class="dot"></span> quality bar</span>
-          <span class="chip gold"><span class="dot"></span> churn / lifetime value</span>
+          <span class="chip gold"><span class="dot"></span> loyalty / churn</span>
+          <span class="chip"><span class="dot"></span> + per-user noise</span>
         </div>
       </div>
       <div class="card">
-        <h3 style="margin-bottom:9px">It's a subscription business</h3>
-        <p>Subscribers pay <span class="ey">every round</span> and churn if price is too high or quality too low.
-        The agent optimizes <span class="grad">lifetime value</span> — acquire, retain, don't burn cash on a finite market — not a one-shot sale.</p>
+        <h3 style="margin-bottom:11px">🛠️ Actions — an operator's toolkit, not a price dial</h3>
+        <p style="margin-bottom:11px; font-size:13.5px; color:var(--dim)">Each round, the agent can:</p>
+        <div class="chips">
+          <span class="chip"><span class="dot"></span> run user research</span>
+          <span class="chip"><span class="dot"></span> target pains</span>
+          <span class="chip"><span class="dot"></span> write ad copy</span>
+          <span class="chip"><span class="dot"></span> allocate budget</span>
+          <span class="chip"><span class="dot"></span> set pricing</span>
+          <span class="chip"><span class="dot"></span> build features via specs</span>
+          <span class="chip gold"><span class="dot"></span> manage retention</span>
+        </div>
       </div>
     </div>
   </div>
@@ -291,7 +301,7 @@ code,.mono{font-family:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,mo
     <h2 class="rv d1">Execution-based reward.<br><span class="hl">Nothing to fake.</span></h2>
 
     <div class="grid g4 rv d2" style="margin-top:8px">
-      <div class="card"><h3><span class="ic">⚖️</span> No LLM judge</h3><p>The sim computes profit from a 500,000-user funnel. The agent can't argue its way to a score.</p></div>
+      <div class="card"><h3><span class="ic">⚖️</span> No LLM judge</h3><p>The sim computes profit from a up to 500,000-user funnel. The agent can't argue its way to a score.</p></div>
       <div class="card"><h3><span class="ic">📐</span> Honest [0,1]</h3><p>reward = profit ÷ a theoretical ceiling — an optimistic true upper bound, not a policy. No clipping, no "beat the oracle."</p></div>
       <div class="card"><h3><span class="ic">🎲</span> Domain-randomized</h3><p>New hidden world every episode. Generalization is measured on held-out seeds — not a within-episode split.</p></div>
       <div class="card"><h3><span class="ic">🧩</span> Matched-quad design</h3><p>Every latent has an action, an observation, <em>and</em> a reward channel — so every skill is both learnable and graded.</p></div>
@@ -340,8 +350,8 @@ code,.mono{font-family:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,mo
           <div class="row"><div class="nm">theoretical ceiling</div><div class="track"><div class="fill ceil" data-w="100"></div></div><div class="val grad">100%</div></div>
         </div>
         <div class="cap">
-          % of the theoretical ceiling. In dollars: naive <b>$14.7k</b> · scripted <b>$46.1k</b> · oracle <b>$691k</b> · ceiling <b>$1.24M</b>.
-          The LTV game — acquire-then-coast, price for retention, don't over-spend a finite market — is deep skill no heuristic captures.
+          % of the theoretical ceiling. The LTV game — acquire-then-coast, price for retention, don't over-spend a
+          finite market — is deep skill no heuristic captures.
         </div>
       </div>
 
@@ -358,6 +368,13 @@ code,.mono{font-family:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,mo
         </div>
         <div class="cap" style="margin-top:12px">Our RL-trained <b>Qwen3-8B</b> leaps past its own base (<b>0.0%</b>) and edges Claude Sonnet — a 8B open model, after RL on SaaSBench.</div>
       </div>
+    </div>
+
+    <div class="card rv d5" style="margin-top:16px; background:var(--grad-soft); border-color:var(--border2)">
+      <p style="font-size:14.5px; color:#e7e9f1; line-height:1.5">
+        <span class="grad" style="font-weight:800">Key finding:</span> product-market fit dominates — agents that
+        under-invest in <em>learning the market</em> fail, even with strong pricing or marketing. Discovery is the binding skill.
+      </p>
     </div>
   </div>
   <div class="count">05 / 08</div>
@@ -437,13 +454,12 @@ code,.mono{font-family:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,mo
 <!-- ============ 7 · WHERE IT GOES — MULTI-AGENT ============ -->
 <section class="slide">
   <div class="slide-inner">
-    <div class="kicker rv"><span class="num">06</span><span class="bar"></span> Where it goes — same reward, more agents</div>
-    <h2 class="rv d1">One founder today.<br>A <span class="hl">whole company</span> next.</h2>
+    <div class="kicker rv"><span class="num">06</span><span class="bar"></span> Two modes — solo founder or full company</div>
+    <h2 class="rv d1">Solo founder, or a <span class="hl">whole company.</span></h2>
     <p class="lede rv d2" style="margin-bottom:24px">
       The hard part of a company isn't one genius — it's a <span class="ey">team that coordinates</span>.
-      The same execution-based profit reward extends straight to multi-agent: split the firm into roles
-      that each see only their slice and must <span class="grad">communicate to win</span>.
-      <span class="subtle">Designed &amp; spec'd — Phase&nbsp;D in the repo.</span>
+      Run SaaSBench with one agent, or as a team of role-agents that each see only their slice and must
+      <span class="grad">communicate to win</span> — the same execution-based profit reward drives both modes.
     </p>
 
     <div class="grid g4 rv d3">

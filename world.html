@@ -58,8 +58,11 @@ h3{font-size:14px;font-weight:600;color:var(--accent);margin-bottom:8px;text-tra
 .pain-tags{display:flex;gap:4px;flex-wrap:wrap}
 .pain-tag{font-size:10px;padding:2px 8px;border-radius:8px;background:rgba(102,126,234,0.12);color:var(--accent)}
 .scatter-container{position:relative;height:300px;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--bg)}
-.scatter-dot{position:absolute;width:6px;height:6px;border-radius:50%;opacity:0.6;transition:opacity 0.2s}
-.scatter-dot:hover{opacity:1;transform:scale(2)}
+.scatter-dot{position:absolute;width:6px;height:6px;border-radius:50%;opacity:0.6;transition:opacity 0.2s,transform 0.2s}
+.scatter-dot:hover{opacity:1;transform:scale(2);z-index:5}
+.scatter-dot.animate{animation:dotIn 0.5s cubic-bezier(0.34,1.56,0.64,1) backwards}
+@keyframes dotIn{from{opacity:0;transform:scale(0)}60%{opacity:0.6;transform:scale(1.35)}to{opacity:0.6;transform:scale(1)}}
+@media(prefers-reduced-motion:reduce){.scatter-dot.animate{animation:none}}
 .scatter-axis-x{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--dim)}
 .scatter-axis-y{position:absolute;left:4px;top:50%;transform:translateY(-50%) rotate(-90deg);font-size:10px;color:var(--dim)}
 .callout{background:rgba(102,126,234,0.08);border:1px solid rgba(102,126,234,0.2);border-radius:10px;padding:14px 18px;
@@ -84,7 +87,7 @@ select{background:var(--card);color:var(--text);border:1px solid var(--border);p
 <body>
 
 <h1>🌍 Simulated World</h1>
-<p class="subtitle">The hidden world behind SaaSBench — ~500,000 synthetic customers the agent must discover</p>
+<p class="subtitle">The hidden world behind SaaSBench — nearly 500,000 synthetic customers the agent must discover</p>
 
 <div class="controls">
   <label>Seed: <select id="seedSelect"><option>Loading...</option></select></label>
@@ -110,25 +113,30 @@ select{background:var(--card);color:var(--text);border:1px solid var(--border);p
   <div class="panel-header"><h3>🎮 The Agent's Action Space</h3></div>
   <div class="panel-body">
     <p style="font-size:13px;color:var(--dim);margin-bottom:16px">
-      Each round, the agent takes three kinds of actions against the hidden market above — then
+      Each round, the agent acts against the hidden market above through MCP tool calls — then
       observes only per-campaign diagnostics (audience reached, conversions, revenue). It must
       <strong style="color:var(--text)">reverse-engineer demand from those signals</strong>, with no view of the ground truth.
     </p>
-    <div class="grid grid-3">
+    <div class="grid grid-2">
+      <div class="segment-card">
+        <div class="segment-header"><span class="segment-name">🔬 Probe the market (research)</span>
+          <span class="segment-badge" style="background:rgba(34,211,238,0.15);color:var(--cyan)">cheap probe</span></div>
+        <p style="font-size:12px;color:var(--dim)"><code>probe_market(target_pains, spend)</code> — run a small, cheap campaign purely to <strong style="color:var(--text)">learn</strong>. It returns per-segment diagnostics (audience reached, tries, conversions) so the agent can rank demand before spending big. This is the core discovery loop.</p>
+      </div>
       <div class="segment-card">
         <div class="segment-header"><span class="segment-name">🔧 Build a feature</span>
           <span class="segment-badge" style="background:rgba(56,239,125,0.15);color:var(--green)">$300 / build</span></div>
-        <p style="font-size:12px;color:var(--dim)">Build one of the <strong style="color:var(--text)">buildable features</strong>. Each secretly solves a hidden customer pain — building the right one unlocks demand from the customers who have that pain.</p>
+        <p style="font-size:12px;color:var(--dim)"><code>build_feature(feature_id)</code> — build one of the <strong style="color:var(--text)">buildable features</strong>. Each secretly solves a hidden customer pain; building the right one unlocks demand from the customers who have that pain.</p>
       </div>
       <div class="segment-card">
         <div class="segment-header"><span class="segment-name">💰 Set the price</span>
           <span class="segment-badge" style="background:rgba(245,158,11,0.15);color:var(--gold)">$20 – $120</span></div>
-        <p style="font-size:12px;color:var(--dim)">Choose the monthly subscription price. Too high prices out low-WTP segments; too low leaves money on the table. Price also drives <strong style="color:var(--text)">churn</strong> when it exceeds willingness-to-pay.</p>
+        <p style="font-size:12px;color:var(--dim)"><code>set_price(price)</code> — choose the monthly subscription price. Too high prices out low-WTP segments; too low leaves money on the table. Price also drives <strong style="color:var(--text)">churn</strong> when it exceeds willingness-to-pay.</p>
       </div>
       <div class="segment-card">
-        <div class="segment-header"><span class="segment-name">📢 Run campaigns</span>
+        <div class="segment-header"><span class="segment-name">📢 Run a campaign (exploit)</span>
           <span class="segment-badge" style="background:rgba(102,126,234,0.15);color:var(--accent)">target · channel · spend</span></div>
-        <p style="font-size:12px;color:var(--dim)">Launch ad campaigns, each picking <strong style="color:var(--text)">which pains to target</strong>, <strong style="color:var(--text)">which channel</strong> to run on, and how much to <strong style="color:var(--text)">spend</strong>. Wrong channel or wrong target wastes budget.</p>
+        <p style="font-size:12px;color:var(--dim)"><code>run_campaign(target_pains, spend)</code> — the full marketing push once demand is known: pick <strong style="color:var(--text)">which pains to target</strong>, <strong style="color:var(--text)">which channel</strong>, and how much to <strong style="color:var(--text)">spend</strong>. Wrong channel or wrong target wastes budget.</p>
       </div>
     </div>
     <p style="font-size:12px;color:var(--dim);margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
@@ -207,10 +215,26 @@ const SEG_COLORS = ['#667eea','#38ef7d','#f59e0b','#ef4444','#a78bfa','#22d3ee',
 const CH_COLORS = ['#667eea','#38ef7d','#f59e0b'];
 let world = null, manifest = null;
 
+// Worlds are saved per run as artifacts/<seed>_<model>/world.json (the world is the
+// same for a given seed across models). Discover one canonical dir per seed; also
+// support legacy bare artifacts/<seed>/world.json. _tmp dirs are intentionally skipped.
+const SEED_CANDIDATES = [1, 2, 3, 4, 5, 7, 42, 99, 100, 123, 200];
+const MODEL_DIRS = ['', 'gpt-5-5', 'gpt-5', 'claude-opus-4-8', 'gemini', 'claude', 'gpt-5-mini'];
+let seedDir = {}; // seed -> base dir (e.g. "artifacts/42_gpt-5-5" or "artifacts/42")
+
+function dirFor(seed, suffix) { return suffix ? `artifacts/${seed}_${suffix}` : `artifacts/${seed}`; }
+
 async function loadSeeds() {
   const seeds = [];
-  for (const s of [1,2,3,4,5,7,42,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,123]) {
-    try { const r = await fetch(`artifacts/${s}/world.json`); if (r.ok) seeds.push(s); } catch(e) {}
+  seedDir = {};
+  for (const s of SEED_CANDIDATES) {
+    for (const m of MODEL_DIRS) {
+      try {
+        const dir = dirFor(s, m);
+        const r = await fetch(`${dir}/world.json`, {cache: 'no-store'});
+        if (r.ok) { seedDir[s] = dir; seeds.push(s); break; }
+      } catch(e) {}
+    }
   }
   const sel = document.getElementById('seedSelect');
   sel.innerHTML = '';
@@ -230,7 +254,7 @@ function seededRand(seed) {
 // Scale all population counts so the world reads at ~500k customers (with per-seed
 // randomness). Percentages are precomputed and unaffected, so everything stays consistent.
 function scaleWorld(w, seed) {
-  const target = 480000 + Math.round(seededRand(seed) * 55000); // ~480k–535k
+  const target = 476000 + Math.round(seededRand(seed) * 22000); // ~476k–498k (slightly below 500k)
   const factor = target / (w.n_users || 5000);
   const sc = n => Math.round((n || 0) * factor);
   (w.pain_popularity || []).forEach(p => { p.count = sc(p.count); });
@@ -243,8 +267,9 @@ function scaleWorld(w, seed) {
 }
 
 async function loadWorld(seed) {
-  world = scaleWorld(await (await fetch(`artifacts/${seed}/world.json`)).json(), seed);
-  try { manifest = await (await fetch(`artifacts/${seed}/manifest.json`)).json(); } catch(e) { manifest = null; }
+  const dir = seedDir[seed] || `artifacts/${seed}`;
+  world = scaleWorld(await (await fetch(`${dir}/world.json`, {cache: 'no-store'})).json(), seed);
+  try { manifest = await (await fetch(`${dir}/manifest.json`, {cache: 'no-store'})).json(); } catch(e) { manifest = null; }
   renderMarket();
   renderReveal();
 }
@@ -350,9 +375,9 @@ function renderScatter() {
   const maxWtp = Math.max(...world.user_sample.map(u => u.wtp));
   const nSeg = world.n_segments || 1;
 
-  world.user_sample.forEach(u => {
+  world.user_sample.forEach((u, idx) => {
     const dot = document.createElement('div');
-    dot.className = 'scatter-dot';
+    dot.className = 'scatter-dot animate';
     const x = (u.wtp / maxWtp) * (W - 20) + 10;
     const segBand = H / nSeg;
     const y = (u.segment * segBand) + (Math.random() * segBand * 0.8) + segBand * 0.1;
@@ -361,6 +386,8 @@ function renderScatter() {
     dot.style.background = SEG_COLORS[u.segment % SEG_COLORS.length];
     dot.style.width = (3 + u.n_pains * 2) + 'px';
     dot.style.height = (3 + u.n_pains * 2) + 'px';
+    // Staggered entrance: dots cascade in (capped so it always finishes ~1.2s)
+    dot.style.animationDelay = Math.min(idx * 6, 1200) + 'ms';
     dot.title = `Seg ${u.segment} | WTP $${u.wtp} | ${u.n_pains} pains | Ch ${u.channel}`;
     container.appendChild(dot);
   });

@@ -22,6 +22,7 @@ rl_grpo_out/
 grpo/
 artifacts_iter1_backup/
 artifacts_iter2_phase_a_demo/
+artifacts/*_tmp/
 
 # Logs and docs
 *.log
