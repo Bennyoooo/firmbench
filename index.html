@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>FirmBench</title>
+<title>SaaSBench</title>
 <style>
 :root{--bg:#0a0b0f;--card:#13151c;--border:#1e2130;--text:#c8cad0;--dim:#6b7084;
   --accent:#667eea;--green:#38ef7d;--gold:#f59e0b}
@@ -15,7 +15,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
 h1{font-size:34px;font-weight:700;color:#fff;margin-bottom:6px}
 .tag{color:var(--accent);font-weight:600}
 .subtitle{color:var(--dim);font-size:15px;margin-bottom:36px;line-height:1.5}
-.cards{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
 @media(max-width:680px){.cards{grid-template-columns:1fr}}
 .card{background:var(--card);border:1px solid var(--border);border-radius:14px;
   padding:26px;text-decoration:none;color:inherit;transition:border-color .2s,transform .2s;display:block}
@@ -29,23 +29,28 @@ h1{font-size:34px;font-weight:700;color:#fff;margin-bottom:6px}
 </head>
 <body>
 <div class="wrap">
-  <h1>🏢 <span class="tag">FirmBench</span></h1>
-  <p class="subtitle">A benchmark for LLM agents running a simulated firm — discovering demand, pricing products, and maximizing profit across rounds.</p>
+  <h1>🏢 <span class="tag">SaaSBench</span></h1>
+  <p class="subtitle">Run a SaaS against a simulated population of real-world users — an agent discovers hidden demand, builds features, targets segments, and prices for retention across rounds.</p>
   <div class="cards">
+    <a class="card" href="/world">
+      <div class="icon">🌍</div>
+      <h2>Simulated World</h2>
+      <p>Explore the underlying world: hidden demand curves, customer segments, and the firm's products across seeds.</p>
+    </a>
     <a class="card" href="/replay">
       <div class="icon">📊</div>
-      <h2>Replay Viewer</h2>
+      <h2>Leaderboard</h2>
       <p>Step through agent runs round by round. Compare models on the leaderboard — base vs GRPO-tuned vs oracle/scripted/naive baselines.</p>
+    </a>
+    <a class="card" href="/grpo">
+      <div class="icon">🧠</div>
+      <h2>GRPO Training</h2>
+      <p>Watch the open-weights agent learn: the GRPO reward curve over training iterations, plus base vs tuned run replays.</p>
     </a>
     <a class="card" href="/replay_multiagent">
       <div class="icon">🤝</div>
       <h2>Multi-Agent (Phase D)</h2>
-      <p>Four role-agents (Coordinator/Builder/Pricer/Marketer) coordinate one firm over a shared blackboard. Frontier-model leaderboard + step-through coordination replays.</p>
-    </a>
-    <a class="card" href="/world">
-      <div class="icon">🌍</div>
-      <h2>Simulated Market</h2>
-      <p>Explore the underlying world: hidden demand curves, customer segments, and the firm's products across seeds.</p>
+      <p>Four role-agents (Coordinator/Builder/Pricer/Marketer) run one firm, coordinating only over a shared blackboard. Frontier-model leaderboard + step-through coordination replays.</p>
     </a>
   </div>
   <p class="foot">Source: <a href="https://github.com/Bennyoooo/firmbench">github.com/Bennyoooo/firmbench</a></p>

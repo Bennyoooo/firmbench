@@ -1,4 +1,4 @@
-# FirmBench — Design & Progress
+# SaaSBench — Design & Progress
 
 > A verifiable RL environment for **experimental market discovery**. A single agent runs
 > a firm: it must reverse-engineer a hidden, persona-structured demand population by
@@ -116,7 +116,7 @@ subscription/LTV dynamics**, all behind `Config` flags (`Config()` = exactly v1;
 `Config.phase_a()` = full market). §§1–9 below describe the v1 baseline; this is what's live.
 
 **World — new hidden latents (each behind a flag):**
-- **Segments** (`use_segments`): ~5,000 users from K hidden personas — correlated pain
+- **Segments** (`use_segments`): ~500,000 users from K hidden personas — correlated pain
   cluster, wtp, elasticity, preferred channel, quality bar, churn rate — plus per-user noise.
 - **Channels** (`use_channels`): segments differ in which channel reaches them.
 - **Per-user elasticity** (`use_elasticity`): price sensitivity varies by user.
@@ -230,7 +230,7 @@ efficiency** (regret vs oracle). *Coordination tax* returns when multi-agent is 
 - **Pain-point pool** `P` (default 8) and **feature pool** `F` (default 8).
 - **Hidden mapping** `solves: P → F` (which feature addresses which pain). Default: a
   bijection. This is the "supply–demand formula" the agent must reverse-engineer.
-- **Demography** of N **numeric** users (default 5,000; NOT LLM-backed → free to run).
+- **Demography** of N **numeric** users (default 500,000; NOT LLM-backed → free to run).
   Each user `u`:
   - `pains ⊂ P` (1–3), sampled from a **skewed popularity distribution** (some pains
     common = "biggest needs", some rare).
@@ -374,7 +374,7 @@ RL-native: success requires **explore→exploit of hidden latent structure**.
    it to parameters that drive a deterministic numeric market.
 5. Simplified from 4-agent C-suite → **single agent** (multi-agent = stretch).
 6. Merged patterns from three codebases:
-   - **FirmBench** sim.py → the market-discovery environment
+   - **SaaSBench** sim.py → the market-discovery environment
    - **rl-experiments/ml-research-rl** → verifier (secret held-out, tripwires, REINFORCE)
    - **autonomous-businesses-template** → HUD v6 integration (MCP, @env.template)
 7. **Deployed to HUD platform** as `firmbench` v1.
@@ -419,7 +419,7 @@ RL-native: success requires **explore→exploit of hidden latent structure**.
 ---
 
 ## 16. One-line pitch
-> FirmBench drops an agent into a market whose demand structure is hidden in a
+> SaaSBench drops an agent into a market whose demand structure is hidden in a
 > 10,000-user simulation. To make money it must *experiment* to discover what people
 > need, *build* it, *market* it to the right people, and *price* it right — and we
 > measure profit and how close it gets to the oracle.

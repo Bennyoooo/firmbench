@@ -26,3 +26,5 @@ grpo/monitor.sh
 grpo/monitor.py
 grpo/job_final.json
 grpo_monitor.py
+.vercel
+.gstack/

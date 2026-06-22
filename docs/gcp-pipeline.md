@@ -1,4 +1,4 @@
-# FirmBench — Google Cloud / Vertex AI pipeline
+# SaaSBench — Google Cloud / Vertex AI pipeline
 
 The GCP counterpart to the Fireworks pipeline (`agent.py` + `rft.py`). Same environment,
 same verifier, same RFT recipe — the only difference is the inference + fine-tuning
@@ -70,11 +70,11 @@ the tuned model endpoint — which is fed straight back in as the next iteration
 
 Genuine policy-gradient RL with verifiable rewards: per world, sample a GROUP of full
 episodes, grade each with the verifier, compute a group-relative advantage (no critic),
-and update the policy with a clipped surrogate + KL. FirmBench's verifier *is* the reward.
+and update the policy with a clipped surrogate + KL. SaaSBench's verifier *is* the reward.
 
 ```bash
 # Offline RL demo — no GPU/torch. The REAL GRPO loop optimizes a categorical policy over
-# FirmBench probe->exploit schedules; held-out reward bends as it learns the optimum.
+# SaaSBench probe->exploit schedules; held-out reward bends as it learns the optimum.
 python3 rl_grpo.py --selftest --iterations 40
 #   iter  0   0.388
 #   iter 40   0.520   (learns switch round k≈7; +34% on held-out seeds)

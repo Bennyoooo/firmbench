@@ -1,0 +1,35 @@
+{
+  "curve": [
+    {
+      "step": 0,
+      "model": "base",
+      "eval": 0.0
+    },
+    {
+      "step": 1,
+      "eval": 0.0957,
+      "train_mean_reward": 0.0396,
+      "n_rollouts": 2,
+      "checkpoint": "03bab999-c079-4900-8e2e-3e4f5d640dc9",
+      "num_datums": 140,
+      "head_mean_reward": 0.039634834193640715
+    }
+  ],
+  "references": {
+    "oracle": 1.0,
+    "scripted": 0.04859972849603979,
+    "naive": 0.012892169066035249
+  },
+  "config": {
+    "steps": 1,
+    "group_size": 2,
+    "lr": 1e-05,
+    "loss_fn": "importance_sampling",
+    "train_seeds": [
+      1
+    ],
+    "eval_seeds": [
+      100
+    ]
+  }
+}

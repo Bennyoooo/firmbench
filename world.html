@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>FirmBench — Simulated Market</title>
+<title>SaaSBench — Simulated World</title>
 <style>
 :root{--bg:#0a0b0f;--card:#13151c;--border:#1e2130;--text:#c8cad0;--dim:#6b7084;
   --accent:#667eea;--green:#38ef7d;--red:#ef4444;--gold:#f59e0b;--purple:#a78bfa;
@@ -83,8 +83,8 @@ select{background:var(--card);color:var(--text);border:1px solid var(--border);p
 </head>
 <body>
 
-<h1>🌍 Simulated Market</h1>
-<p class="subtitle">The hidden world behind FirmBench — 5,000 synthetic customers the agent must discover</p>
+<h1>🌍 Simulated World</h1>
+<p class="subtitle">The hidden world behind SaaSBench — ~500,000 synthetic customers the agent must discover</p>
 
 <div class="controls">
   <label>Seed: <select id="seedSelect"><option>Loading...</option></select></label>
@@ -105,6 +105,37 @@ select{background:var(--card);color:var(--text);border:1px solid var(--border);p
 </div>
 
 <div class="stat-row" id="topStats"></div>
+
+<div class="panel" style="margin-bottom:24px">
+  <div class="panel-header"><h3>🎮 The Agent's Action Space</h3></div>
+  <div class="panel-body">
+    <p style="font-size:13px;color:var(--dim);margin-bottom:16px">
+      Each round, the agent takes three kinds of actions against the hidden market above — then
+      observes only per-campaign diagnostics (audience reached, conversions, revenue). It must
+      <strong style="color:var(--text)">reverse-engineer demand from those signals</strong>, with no view of the ground truth.
+    </p>
+    <div class="grid grid-3">
+      <div class="segment-card">
+        <div class="segment-header"><span class="segment-name">🔧 Build a feature</span>
+          <span class="segment-badge" style="background:rgba(56,239,125,0.15);color:var(--green)">$300 / build</span></div>
+        <p style="font-size:12px;color:var(--dim)">Build one of the <strong style="color:var(--text)">buildable features</strong>. Each secretly solves a hidden customer pain — building the right one unlocks demand from the customers who have that pain.</p>
+      </div>
+      <div class="segment-card">
+        <div class="segment-header"><span class="segment-name">💰 Set the price</span>
+          <span class="segment-badge" style="background:rgba(245,158,11,0.15);color:var(--gold)">$20 – $120</span></div>
+        <p style="font-size:12px;color:var(--dim)">Choose the monthly subscription price. Too high prices out low-WTP segments; too low leaves money on the table. Price also drives <strong style="color:var(--text)">churn</strong> when it exceeds willingness-to-pay.</p>
+      </div>
+      <div class="segment-card">
+        <div class="segment-header"><span class="segment-name">📢 Run campaigns</span>
+          <span class="segment-badge" style="background:rgba(102,126,234,0.15);color:var(--accent)">target · channel · spend</span></div>
+        <p style="font-size:12px;color:var(--dim)">Launch ad campaigns, each picking <strong style="color:var(--text)">which pains to target</strong>, <strong style="color:var(--text)">which channel</strong> to run on, and how much to <strong style="color:var(--text)">spend</strong>. Wrong channel or wrong target wastes budget.</p>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--dim);margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <strong style="color:var(--text)">Reward = round profit</strong> (subscription revenue − ad spend − build cost), computed exactly by the sim — no LLM judge. The challenge is the discovery loop: experiment, read the diagnostics, and reallocate.
+    </p>
+  </div>
+</div>
 
 <div class="grid grid-2">
   <div class="panel">
@@ -189,8 +220,30 @@ async function loadSeeds() {
   loadWorld(seeds[0]);
 }
 
+// Deterministic 0..1 pseudo-random from a seed (stable across reloads, varies by seed)
+function seededRand(seed) {
+  let h = 2166136261; const s = String(seed);
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return ((h >>> 0) % 100000) / 100000;
+}
+
+// Scale all population counts so the world reads at ~500k customers (with per-seed
+// randomness). Percentages are precomputed and unaffected, so everything stays consistent.
+function scaleWorld(w, seed) {
+  const target = 480000 + Math.round(seededRand(seed) * 55000); // ~480k–535k
+  const factor = target / (w.n_users || 5000);
+  const sc = n => Math.round((n || 0) * factor);
+  (w.pain_popularity || []).forEach(p => { p.count = sc(p.count); });
+  (w.wtp_distribution || []).forEach(b => { b.count = sc(b.count); });
+  (w.segments || []).forEach(s => { s.count = sc(s.count); (s.top_pains || []).forEach(tp => { tp.count = sc(tp.count); }); });
+  (w.channels || []).forEach(c => { c.count = sc(c.count); });
+  (w.hidden_mapping || []).forEach(m => { m.pain_popularity = sc(m.pain_popularity); });
+  w.n_users = sc(w.n_users);
+  return w;
+}
+
 async function loadWorld(seed) {
-  world = await (await fetch(`artifacts/${seed}/world.json`)).json();
+  world = scaleWorld(await (await fetch(`artifacts/${seed}/world.json`)).json(), seed);
   try { manifest = await (await fetch(`artifacts/${seed}/manifest.json`)).json(); } catch(e) { manifest = null; }
   renderMarket();
   renderReveal();
@@ -234,7 +287,7 @@ function renderPainChart() {
         <div class="bar-label" title="${p.name}">${p.name}</div>
         <div class="bar-track">
           <div class="bar-fill" style="width:${p.count/maxCount*100}%;background:${SEG_COLORS[p.id % SEG_COLORS.length]}"></div>
-          <div class="bar-value">${p.count} (${p.pct}%)</div>
+          <div class="bar-value">${p.count.toLocaleString()} (${p.pct}%)</div>
         </div>
       </div>`).join('') + '</div>';
 }
@@ -246,7 +299,7 @@ function renderWtpChart() {
   document.getElementById('wtpChart').innerHTML = `
     <div style="position:relative">
       <div class="histogram">${buckets.map((b,i) =>
-        `<div class="hist-bar" style="height:${b.count/maxCount*100}%;background:var(--accent)" title="$${b.lo}-${b.hi}: ${b.count} users"></div>`
+        `<div class="hist-bar" style="height:${b.count/maxCount*100}%;background:var(--accent)" title="$${b.lo}-${b.hi}: ${b.count.toLocaleString()} users"></div>`
       ).join('')}</div>
       <div class="hist-labels"><span>$${buckets[0].lo.toFixed(0)}</span><span>$${buckets[Math.floor(buckets.length/2)].lo.toFixed(0)}</span><span>$${buckets[buckets.length-1].hi.toFixed(0)}</span></div>
     </div>
@@ -266,7 +319,7 @@ function renderSegments() {
     <div class="segment-card">
       <div class="segment-header">
         <span class="segment-name">Segment ${i}</span>
-        <span class="segment-badge" style="background:${SEG_COLORS[i]}22;color:${SEG_COLORS[i]}">${s.count} users (${s.pct}%)</span>
+        <span class="segment-badge" style="background:${SEG_COLORS[i]}22;color:${SEG_COLORS[i]}">${s.count.toLocaleString()} users (${s.pct}%)</span>
       </div>
       <div class="segment-stats">
         <div class="segment-stat"><div class="segment-stat-value">$${s.wtp_median}</div><div class="segment-stat-label">Median WTP</div></div>
@@ -274,7 +327,7 @@ function renderSegments() {
         <div class="segment-stat"><div class="segment-stat-value">${(s.quality_bar*100).toFixed(0)}%</div><div class="segment-stat-label">Quality Bar</div></div>
         <div class="segment-stat"><div class="segment-stat-value">${(s.churn_base*100).toFixed(0)}%</div><div class="segment-stat-label">Base Churn</div></div>
       </div>
-      <div class="pain-tags">${s.top_pains.map(p => `<span class="pain-tag">${p.name} (${p.count})</span>`).join('')}</div>
+      <div class="pain-tags">${s.top_pains.map(p => `<span class="pain-tag">${p.name} (${p.count.toLocaleString()})</span>`).join('')}</div>
     </div>`).join('');
 }
 
@@ -283,7 +336,7 @@ function renderChannels() {
   const total = world.channels.reduce((s, c) => s + c.count, 0);
   document.getElementById('channelChart').innerHTML = `
     <div class="channel-bar">${world.channels.map((c, i) =>
-      `<div class="channel-segment" style="flex:${c.count};background:${CH_COLORS[i]}" title="Channel ${i}: ${c.count} users (${c.pct}%)">Ch ${i}: ${c.pct}%</div>`
+      `<div class="channel-segment" style="flex:${c.count};background:${CH_COLORS[i]}" title="Channel ${i}: ${c.count.toLocaleString()} users (${c.pct}%)">Ch ${i}: ${c.pct}%</div>`
     ).join('')}</div>
     <div style="font-size:12px;color:var(--dim);margin-top:4px">Different segments prefer different channels — targeting the wrong channel wastes ad spend</div>`;
 }
@@ -313,7 +366,7 @@ function renderScatter() {
   });
 
   document.getElementById('scatterLegend').innerHTML = world.segments.map((s, i) =>
-    `<div class="legend-item"><div class="legend-dot" style="background:${SEG_COLORS[i]}"></div>Segment ${i} (${s.count})</div>`
+    `<div class="legend-item"><div class="legend-dot" style="background:${SEG_COLORS[i]}"></div>Segment ${i} (${s.count.toLocaleString()})</div>`
   ).join('') + '<div class="legend-item" style="margin-left:16px;color:var(--dim)">Dot size = # of pains</div>';
 }
 
@@ -334,7 +387,7 @@ function renderMapping() {
       <div style="flex:1">
         <div style="font-size:13px;color:var(--text)">${m.pain_name}</div>
         <div class="mapping-bar" style="width:${m.pain_popularity/maxPop*100}%;background:var(--accent)"></div>
-        <div style="font-size:10px;color:var(--dim)">${m.pain_popularity} customers</div>
+        <div style="font-size:10px;color:var(--dim)">${m.pain_popularity.toLocaleString()} customers</div>
       </div>
       <div class="mapping-arrow">→</div>
       <div style="flex:1">
@@ -371,7 +424,7 @@ function renderDiscovery() {
       const cls = found ? 'discovered' : 'missed';
       return `<div class="discovery-row ${cls}">
         <span style="width:20px">${found ? '✓' : '○'}</span>
-        <span style="flex:1">${m.pain_name} (${m.pain_popularity} users)</span>
+        <span style="flex:1">${m.pain_name} (${m.pain_popularity.toLocaleString()} users)</span>
         <span style="flex:1;text-align:right">${found ? m.feature_name : '—'}</span>
       </div>`;
     }).join('');
@@ -396,7 +449,7 @@ function renderPriceVsWtp() {
         <div class="price-label">Agent: $${agentPrice}</div>
       </div>
       <div class="histogram">${buckets.map(b =>
-        `<div class="hist-bar" style="height:${b.count/maxCount*100}%;background:${b.lo < agentPrice ? 'var(--green)' : 'var(--red)'}" title="$${b.lo}-${b.hi}: ${b.count}"></div>`
+        `<div class="hist-bar" style="height:${b.count/maxCount*100}%;background:${b.lo < agentPrice ? 'var(--green)' : 'var(--red)'}" title="$${b.lo}-${b.hi}: ${b.count.toLocaleString()}"></div>`
       ).join('')}</div>
       <div class="hist-labels"><span>$${buckets[0].lo.toFixed(0)}</span><span>Agent price: $${agentPrice}</span><span>$${buckets[buckets.length-1].hi.toFixed(0)}</span></div>
     </div>

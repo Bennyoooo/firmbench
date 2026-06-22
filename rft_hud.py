@@ -66,6 +66,28 @@ def disc_eff(world, profit):
     return max(0.0, min(1.0, profit / oracle)) if oracle > 0 else 0.0
 
 
+_TRANSIENT_STATUS = {429, 500, 502, 503, 504}
+
+
+async def _with_retry(coro_fn, *, what, tries=6, base_delay=10.0):
+    """Retry a training HTTP call on transient server errors (5xx / 429). Beta infra
+    throws intermittent 503s; without this a multi-hour run dies on a momentary blip.
+    A transient status is a proxy-level rejection (request not processed), so a retry
+    does not double-count gradients. Re-raises non-transient errors immediately."""
+    from hud.utils.exceptions import HudRequestError
+    for attempt in range(1, tries + 1):
+        try:
+            return await coro_fn()
+        except HudRequestError as e:
+            transient = getattr(e, "status_code", None) in _TRANSIENT_STATUS
+            if not transient or attempt == tries:
+                raise
+            delay = base_delay * attempt
+            print(f"    [retry {attempt}/{tries - 1}] {what}: {e.status_code} transient; "
+                  f"waiting {delay:.0f}s")
+            await asyncio.sleep(delay)
+
+
 def _check_groups(n, group_size):
     """Fail before a training step if the batch can't form full GRPO groups: an
     incomplete final group gets a skewed advantage baseline. Cheap, no round-trip.
@@ -199,13 +221,34 @@ class HudBackend:
 
     async def train_step(self, runs, lr, loss_fn, group_size):
         _check_groups(len(runs), group_size)
-        # one grouped policy-gradient step: accumulate grads, then apply+checkpoint
-        # +promote (gateway serves the new weights). Equivalent to client.step(...).
-        await self.client.forward_backward(runs, loss_fn=loss_fn, group_size=group_size)
-        res = await self.client.optim_step(learning_rate=lr)
+        # Train from trace_id REFERENCES, not inline token blobs. With KV-cache
+        # continuation each turn's Sample carries the full prompt token ids, so an
+        # inline batch is O(turns^2) per episode -> hundreds of MB -> HTTP 413. The
+        # service resolves the recorded tokens + reward from the trace_id (~KB body).
+        # Micro-batch ONE whole GRPO group per call (advantages normalize within the
+        # group) and accumulate gradients; a single optim_step applies the sum and
+        # checkpoints+promotes (gateway then serves the new weights).
+        inputs = [r.trace_id for r in runs]
+        if any(t is None for t in inputs):
+            raise ValueError("a rollout produced no trace_id; cannot train from it")
+        total_datums = 0
+        for i in range(0, len(inputs), group_size):
+            chunk = inputs[i:i + group_size]
+            res = await _with_retry(
+                lambda c=chunk: self.client.forward_backward(
+                    c, loss_fn=loss_fn, group_size=group_size),
+                what="forward_backward")
+            total_datums += res.num_datums
+        if total_datums == 0:
+            raise RuntimeError(
+                "forward_backward resolved 0 training datums from trace_ids — the "
+                "gateway trace has no token-level data to train on")
+        step = await _with_retry(
+            lambda: self.client.optim_step(learning_rate=lr), what="optim_step")
         head = await self.client.head()
         return {"mean_reward": mean(r.reward for r in runs),
-                "step": res.step, "checkpoint": res.checkpoint_id,
+                "step": step.step, "checkpoint": step.checkpoint_id,
+                "num_datums": total_datums,
                 "head_mean_reward": getattr(head, "mean_reward", None)}
 
 
@@ -300,8 +343,8 @@ async def rl_loop(backend, *, train_seeds, eval_seeds, steps, group_size, lr,
         point = {"step": step, "eval": round(ev, 4),
                  "train_mean_reward": round(metrics["mean_reward"], 4),
                  "n_rollouts": len(runs)}
-        for k in ("skill", "step", "checkpoint", "head_mean_reward"):
-            if k in metrics and k != "step":
+        for k in ("skill", "checkpoint", "num_datums", "head_mean_reward"):
+            if k in metrics:
                 point[k] = metrics[k]
         curve.append(point)
         extra = f" skill={metrics['skill']}" if "skill" in metrics else (

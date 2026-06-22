@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SaaSBench — run a SaaS against a simulated population of real-world users</title>
+<script>document.documentElement.classList.add('js');</script>
+<style>
+:root{
+  --bg:#0a0b0f; --bg2:#0c0e14; --card:#13151c; --card2:#161922;
+  --border:#1e2130; --border2:#272b3b;
+  --text:#d6d8de; --soft:#9aa0b0; --dim:#6b7084;
+  --accent:#667eea; --accent2:#7c8bff; --green:#38ef7d; --gold:#f59e0b; --red:#ef4444;
+  --grad:linear-gradient(120deg,#7c8bff 0%,#38ef7d 100%);
+  --grad-soft:linear-gradient(120deg,rgba(124,139,255,.16),rgba(56,239,125,.16));
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg); color:var(--text);
+  -webkit-font-smoothing:antialiased; line-height:1.5;
+  font-variant-numeric:tabular-nums;
+}
+/* ---------- scroll-snap deck ---------- */
+.deck{height:100vh; overflow-y:scroll; scroll-snap-type:y proximity; scroll-padding-top:0}
+.slide{
+  position:relative; min-height:100vh; scroll-snap-align:start;
+  display:flex; flex-direction:column; justify-content:center;
+  padding:clamp(28px,5vw,84px); padding-bottom:clamp(56px,7vw,96px);
+  overflow:hidden; border-bottom:1px solid var(--border);
+}
+.slide-inner{width:100%; max-width:1180px; margin:0 auto; position:relative; z-index:2}
+/* ambient background */
+.slide::before{
+  content:""; position:absolute; inset:0; z-index:0; pointer-events:none;
+  background:
+    radial-gradient(900px 520px at 12% -8%, rgba(102,126,234,.16), transparent 60%),
+    radial-gradient(820px 520px at 110% 115%, rgba(56,239,125,.10), transparent 60%);
+}
+.slide::after{
+  content:""; position:absolute; inset:0; z-index:0; pointer-events:none; opacity:.5;
+  background-image:linear-gradient(var(--border) 1px,transparent 1px),
+                   linear-gradient(90deg,var(--border) 1px,transparent 1px);
+  background-size:54px 54px; -webkit-mask-image:radial-gradient(circle at 50% 40%,#000,transparent 78%);
+  mask-image:radial-gradient(circle at 50% 40%,#000,transparent 78%); opacity:.18;
+}
+/* ---------- typography ---------- */
+.kicker{
+  display:inline-flex; align-items:center; gap:10px;
+  font-size:12.5px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--soft); margin-bottom:22px;
+}
+.kicker .num{color:var(--accent2)}
+.kicker .bar{width:30px; height:1px; background:var(--border2)}
+h1{font-size:clamp(40px,7.4vw,92px); line-height:1.02; font-weight:800; color:#fff; letter-spacing:-.02em}
+h2{font-size:clamp(28px,4.6vw,54px); line-height:1.05; font-weight:800; color:#fff; letter-spacing:-.02em; margin-bottom:18px}
+h2 .hl{background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent}
+.lede{font-size:clamp(16px,1.9vw,21px); color:var(--soft); max-width:60ch; line-height:1.55}
+.ey{color:#fff; font-weight:600}
+.grad{background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent}
+/* ---------- chips ---------- */
+.chips{display:flex; flex-wrap:wrap; gap:10px}
+.chip{
+  font-size:13px; font-weight:600; color:var(--soft);
+  background:var(--card); border:1px solid var(--border2); border-radius:999px;
+  padding:8px 15px; display:inline-flex; align-items:center; gap:8px; white-space:nowrap;
+}
+.chip .dot{width:7px; height:7px; border-radius:50%; background:var(--accent2)}
+.chip.g .dot{background:var(--green)} .chip.gold .dot{background:var(--gold)}
+/* ---------- cards / grid ---------- */
+.grid{display:grid; gap:16px}
+.g2{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(3,1fr)} .g4{grid-template-columns:repeat(4,1fr)}
+.card{
+  background:linear-gradient(180deg,var(--card),var(--bg2));
+  border:1px solid var(--border); border-radius:16px; padding:22px;
+}
+.card h3{font-size:15.5px; color:#fff; font-weight:700; margin-bottom:7px; display:flex; align-items:center; gap:9px}
+.card p{font-size:13.5px; color:var(--dim); line-height:1.55}
+.card .ic{font-size:16px; width:30px; height:30px; border-radius:9px; display:grid; place-items:center;
+  background:var(--grad-soft); border:1px solid var(--border2); flex:0 0 auto}
+/* ---------- stat ---------- */
+.stat{font-size:clamp(34px,5vw,62px); font-weight:800; line-height:1; letter-spacing:-.02em}
+.stat.grad{background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent}
+.statlbl{font-size:12.5px; color:var(--dim); margin-top:9px; letter-spacing:.02em}
+/* hero band */
+.band{
+  margin-top:30px; display:flex; gap:14px; align-items:stretch; flex-wrap:wrap;
+}
+.band .b{
+  background:linear-gradient(180deg,var(--card),var(--bg2)); border:1px solid var(--border2);
+  border-radius:16px; padding:18px 22px; flex:1; min-width:210px;
+}
+.band .b .v{font-size:clamp(24px,3vw,34px); font-weight:800; letter-spacing:-.01em; line-height:1}
+.band .b .k{font-size:12.5px; color:var(--dim); margin-top:8px}
+/* ---------- bar charts ---------- */
+.bars{display:flex; flex-direction:column; gap:13px}
+.row{display:grid; grid-template-columns:152px 1fr 92px; align-items:center; gap:14px}
+.row .nm{font-size:13.5px; color:var(--soft); font-weight:600; text-align:right}
+.row .track{height:26px; background:#0e1018; border:1px solid var(--border); border-radius:8px; overflow:hidden; position:relative}
+.row .fill{height:100%; width:0; border-radius:7px; transition:width 1.1s cubic-bezier(.2,.8,.2,1)}
+.row .val{font-size:14px; font-weight:800; text-align:left; font-variant-numeric:tabular-nums}
+.fill.naive{background:#3a3f55} .fill.scripted{background:#5563c4}
+.fill.oracle{background:linear-gradient(90deg,#667eea,#48c8ff)}
+.fill.ceil{background:var(--grad)}
+.fill.mdl{background:linear-gradient(90deg,#5563c4,#7c8bff)}
+.fill.rl{background:var(--grad)}
+.subtle{font-size:12px; color:var(--dim)}
+.cap{font-size:12.5px; color:var(--dim); margin-top:16px; line-height:1.5}
+.cap b{color:var(--soft); font-weight:600}
+/* loop diagram */
+.loop{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; align-items:stretch}
+.node{
+  background:linear-gradient(180deg,var(--card),var(--bg2)); border:1px solid var(--border2);
+  border-radius:14px; padding:16px 14px; position:relative;
+}
+.node .t{font-size:12px; color:var(--accent2); font-weight:700; letter-spacing:.04em; text-transform:uppercase; margin-bottom:7px}
+.node .d{font-size:13px; color:var(--soft); line-height:1.45}
+.node .ar{position:absolute; right:-12px; top:50%; transform:translateY(-50%); color:var(--border2); font-size:18px; z-index:3}
+.node:last-child .ar{content:""}
+/* pass badges */
+.gate{display:flex; flex-wrap:wrap; gap:8px; margin-top:6px}
+.pass,.warn{font-size:12px; font-weight:700; padding:6px 11px; border-radius:8px; display:inline-flex; gap:7px; align-items:center}
+.pass{color:var(--green); background:rgba(56,239,125,.10); border:1px solid rgba(56,239,125,.28)}
+.warn{color:var(--gold); background:rgba(245,158,11,.10); border:1px solid rgba(245,158,11,.28)}
+/* code */
+code,.mono{font-family:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,monospace}
+.codeblock{
+  background:#0c0e15; border:1px solid var(--border2); border-radius:12px; padding:14px 16px;
+  font-size:12.5px; color:#aeb6e8; overflow-x:auto; line-height:1.7;
+}
+.codeblock .c{color:var(--dim)} .codeblock .k{color:var(--green)}
+/* curve svg */
+.svgwrap{background:linear-gradient(180deg,var(--card),var(--bg2)); border:1px solid var(--border); border-radius:16px; padding:20px 22px}
+.svgwrap .ttl{font-size:13px; color:var(--soft); font-weight:600; margin-bottom:6px}
+/* footer / chrome */
+.foot{position:absolute; left:clamp(28px,5vw,84px); bottom:22px; z-index:3; font-size:12px; color:var(--dim); display:flex; gap:14px; align-items:center}
+.foot a{color:var(--accent); text-decoration:none}
+.count{position:absolute; right:clamp(28px,5vw,84px); bottom:22px; z-index:3; font-size:12px; color:var(--dim); letter-spacing:.06em}
+.brandmark{display:inline-flex; align-items:center; gap:9px; font-weight:700}
+.brandmark .sq{width:18px; height:18px; border-radius:5px; background:var(--grad); box-shadow:0 0 16px rgba(124,139,255,.5)}
+/* progress + dots */
+.progress{position:fixed; top:0; left:0; height:3px; width:0; z-index:50; background:var(--grad); transition:width .25s ease}
+.dots{position:fixed; right:18px; top:50%; transform:translateY(-50%); z-index:50; display:flex; flex-direction:column; gap:11px}
+.dots b{width:9px; height:9px; border-radius:50%; background:var(--border2); cursor:pointer; transition:all .25s; display:block; border:0; padding:0}
+.dots b.on{background:var(--grad); transform:scale(1.35)}
+.hint{position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:40; font-size:11px; color:var(--dim);
+  background:rgba(13,15,22,.7); border:1px solid var(--border); border-radius:999px; padding:5px 13px; backdrop-filter:blur(6px)}
+/* reveal */
+.js .rv{opacity:0; transform:translateY(14px); transition:opacity .6s ease, transform .6s ease}
+.rv.in{opacity:1; transform:none}
+.rv.d1{transition-delay:.06s}.rv.d2{transition-delay:.12s}.rv.d3{transition-delay:.18s}.rv.d4{transition-delay:.24s}.rv.d5{transition-delay:.3s}
+/* responsive */
+@media(max-width:880px){
+  .g4,.g3,.g2,.loop{grid-template-columns:1fr}
+  .node .ar{display:none}
+  .row{grid-template-columns:104px 1fr 64px; gap:9px}
+  .row .nm{font-size:12px}
+  .split{grid-template-columns:1fr!important}
+  .dots{display:none}
+}
+.split{display:grid; grid-template-columns:1fr 1fr; gap:26px; align-items:center}
+/* print → clean PDF, one slide per page */
+@media print{
+  :root{--bg:#0a0b0f}
+  .deck{height:auto; overflow:visible}
+  .slide{min-height:auto; height:auto; page-break-after:always; border:none; padding:40px}
+  .slide::after{display:none}
+  .progress,.dots,.hint{display:none!important}
+  .rv{opacity:1!important; transform:none!important}
+  *{-webkit-print-color-adjust:exact; print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="dots" id="dots"></div>
+<div class="hint">↓ scroll · → arrows · click dots</div>
+
+<div class="deck" id="deck">
+
+<!-- ============ 1 · TITLE ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker rv"><span class="bar"></span> HUD Frontier / RSI · RL Environments Hackathon — HUD W25 × YC</div>
+    <h1 class="rv d1"><span class="brandmark"><span class="sq"></span></span> SaaSBench</h1>
+    <p class="lede rv d2" style="margin-top:20px; font-size:clamp(18px,2.3vw,26px); color:#c5c9d6; max-width:30ch; line-height:1.3">
+      A <span class="ey">verifiable RL environment</span> where an agent runs a SaaS against a
+      <span class="grad">simulated population of real-world users — discovering hidden demand, building the product, and pricing for retention.</span>
+    </p>
+
+    <div class="band rv d3">
+      <div class="b">
+        <div class="v grad">+260%</div>
+        <div class="k">held-out profit-efficiency after GRPO on an open 8B model<br>(0.147 → 0.529 on worlds it never trained on)</div>
+      </div>
+      <div class="b">
+        <div class="v" style="color:#fff">7%</div>
+        <div class="k">of an achievable expert is all the best scripted heuristic reaches — wide-open RL headroom</div>
+      </div>
+      <div class="b">
+        <div class="v" style="color:#fff">0</div>
+        <div class="k">LLM judges. Reward is profit, computed exactly by a 500,000-user market sim</div>
+      </div>
+    </div>
+
+    <div class="chips rv d4" style="margin-top:28px">
+      <span class="chip"><span class="dot"></span> Verifiable &amp; ungameable</span>
+      <span class="chip"><span class="dot"></span> Domain-randomized</span>
+      <span class="chip g"><span class="dot"></span> Trainable — the curve bends</span>
+      <span class="chip gold"><span class="dot"></span> Live on HUD</span>
+    </div>
+  </div>
+  <div class="foot"><span class="brandmark"><span class="sq" style="width:14px;height:14px"></span> SaaSBench</span> · github.com/Bennyoooo/firmbench</div>
+  <div class="count">01 / 08</div>
+</section>
+
+<!-- ============ 2 · THE PROBLEM ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker rv"><span class="num">01</span><span class="bar"></span> The gap</div>
+    <h2 class="rv d1">RL has math and code.<br>It doesn't have <span class="hl">business.</span></h2>
+    <p class="lede rv d2">
+      Frontier RL environments reward provable answers — theorems, unit tests, won games.
+      But the most valuable agentic skill of all — <span class="ey">running a business</span>:
+      finding what a market wants, building it, and pricing it — has no verifiable gym.
+      Grading "good strategy" with an LLM judge is noisy and gameable.
+    </p>
+
+    <div class="card rv d3" style="margin-top:30px; border-color:var(--border2); background:var(--grad-soft)">
+      <p style="font-size:clamp(16px,2vw,22px); color:#eef0f6; line-height:1.45; font-weight:600">
+        💡 Profit is the perfect reward. It's a single number a simulator can compute
+        <span class="grad">exactly</span> — impossible to fake, and it only goes up if the agent
+        <span class="grad">actually understands the market.</span>
+      </p>
+    </div>
+
+    <div class="grid g3 rv d4" style="margin-top:18px">
+      <div class="card"><h3><span class="ic">🎯</span> Economically real</h3><p>The task is the job — discovery, allocation, and pricing under uncertainty — not a synthetic puzzle.</p></div>
+      <div class="card"><h3><span class="ic">🔒</span> Verifiable</h3><p>Reward is computed by a deterministic market simulation. No judge to persuade, nothing to game.</p></div>
+      <div class="card"><h3><span class="ic">🧭</span> Open-ended</h3><p>Hidden latent structure forces genuine explore-then-exploit — exactly what makes a task RL-native.</p></div>
+    </div>
+  </div>
+  <div class="count">02 / 08</div>
+</section>
+
+<!-- ============ 3 · WHAT IT IS ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker rv"><span class="num">02</span><span class="bar"></span> The environment</div>
+    <h2 class="rv d1">One agent. One hidden market.<br>~16 rounds to <span class="hl">find the money.</span></h2>
+    <p class="lede rv d2" style="margin-bottom:26px">
+      Drop a single agent into a market whose demand is hidden inside a 500,000-user simulation.
+      Each episode is a brand-new randomized world. The agent runs experiments to reverse-engineer it.
+    </p>
+
+    <div class="loop rv d3">
+      <div class="node"><div class="t">Hidden world</div><div class="d">500,000 users from hidden personas — correlated pains, willingness-to-pay, preferred channel, churn.</div><div class="ar">→</div></div>
+      <div class="node"><div class="t">Agent acts</div><div class="d">6 MCP tools: probe, build, price, run campaigns — within a round, then commit.</div><div class="ar">→</div></div>
+      <div class="node"><div class="t">Market sim</div><div class="d">A deterministic funnel runs: reach → try → buy → subscribe → churn.</div><div class="ar">→</div></div>
+      <div class="node"><div class="t">Reward</div><div class="d">Per-target diagnostics + profit. Reward = profit ÷ a theoretical ceiling. Repeat.</div></div>
+    </div>
+
+    <div class="split rv d4" style="margin-top:24px; grid-template-columns:1.3fr 1fr; gap:18px">
+      <div class="card">
+        <h3 style="margin-bottom:11px">What the agent must learn — all hidden</h3>
+        <div class="chips">
+          <span class="chip"><span class="dot"></span> pain → feature map</span>
+          <span class="chip"><span class="dot"></span> which segments are biggest</span>
+          <span class="chip"><span class="dot"></span> which channel reaches whom</span>
+          <span class="chip"><span class="dot"></span> price elasticity</span>
+          <span class="chip"><span class="dot"></span> quality bar</span>
+          <span class="chip gold"><span class="dot"></span> churn / lifetime value</span>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:9px">It's a subscription business</h3>
+        <p>Subscribers pay <span class="ey">every round</span> and churn if price is too high or quality too low.
+        The agent optimizes <span class="grad">lifetime value</span> — acquire, retain, don't burn cash on a finite market — not a one-shot sale.</p>
+      </div>
+    </div>
+  </div>
+  <div class="count">03 / 08</div>
+</section>
+
+<!-- ============ 4 · VERIFIABLE ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker rv"><span class="num">03</span><span class="bar"></span> Why it's a real benchmark</div>
+    <h2 class="rv d1">Execution-based reward.<br><span class="hl">Nothing to fake.</span></h2>
+
+    <div class="grid g4 rv d2" style="margin-top:8px">
+      <div class="card"><h3><span class="ic">⚖️</span> No LLM judge</h3><p>The sim computes profit from a 500,000-user funnel. The agent can't argue its way to a score.</p></div>
+      <div class="card"><h3><span class="ic">📐</span> Honest [0,1]</h3><p>reward = profit ÷ a theoretical ceiling — an optimistic true upper bound, not a policy. No clipping, no "beat the oracle."</p></div>
+      <div class="card"><h3><span class="ic">🎲</span> Domain-randomized</h3><p>New hidden world every episode. Generalization is measured on held-out seeds — not a within-episode split.</p></div>
+      <div class="card"><h3><span class="ic">🧩</span> Matched-quad design</h3><p>Every latent has an action, an observation, <em>and</em> a reward channel — so every skill is both learnable and graded.</p></div>
+    </div>
+
+    <div class="card rv d3" style="margin-top:18px">
+      <div class="split" style="grid-template-columns:auto 1fr; gap:24px; align-items:center">
+        <div>
+          <div class="stat grad">6&nbsp;/&nbsp;7</div>
+          <div class="statlbl">ablation configs PASS</div>
+        </div>
+        <div>
+          <h3 style="margin-bottom:10px">The ablation gate proves each latent is discoverable</h3>
+          <p style="margin-bottom:12px; color:var(--soft)">A scripted experimenter must beat a naïve baseline and stay under an informed oracle —
+          <span class="mono" style="color:#cfd4e6">naive &lt; scripted &lt; oracle</span> — for v1, every single latent, and the full stack.</p>
+          <div class="gate">
+            <span class="pass">✓ v1</span>
+            <span class="pass">✓ +segments</span>
+            <span class="pass">✓ +elasticity</span>
+            <span class="pass">✓ +quality bar</span>
+            <span class="pass">✓ +retention</span>
+            <span class="pass">✓ full market</span>
+            <span class="warn">⚠ channels-alone*</span>
+          </div>
+          <div class="cap" style="margin-top:11px">*a known mechanism artifact that resolves once the LTV-aware oracle is in the full market. If a latent ever became unobservable, this gate fails loudly — by construction.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="count">04 / 08</div>
+</section>
+
+<!-- ============ 5 · HEADROOM ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker rv"><span class="num">04</span><span class="bar"></span> Headroom — it's hard</div>
+    <h2 class="rv d1">A scripted expert captures <span class="hl">7%</span> of what's achievable.</h2>
+    <p class="lede rv d2" style="margin-bottom:24px">10 held-out seeds, full market · reward = profit ÷ theoretical ceiling. The gap between a disciplined heuristic and an achievable expert is the RL opportunity.</p>
+
+    <div class="split" style="grid-template-columns:1.35fr 1fr; gap:26px; align-items:start">
+      <div class="rv d3">
+        <div class="bars">
+          <div class="row"><div class="nm">naive</div><div class="track"><div class="fill naive" data-w="1.2"></div></div><div class="val" style="color:var(--dim)">1.2%</div></div>
+          <div class="row"><div class="nm">scripted expert</div><div class="track"><div class="fill scripted" data-w="3.7"></div></div><div class="val" style="color:var(--accent2)">3.7%</div></div>
+          <div class="row"><div class="nm">oracle (achievable)</div><div class="track"><div class="fill oracle" data-w="55.7"></div></div><div class="val" style="color:#48c8ff">55.7%</div></div>
+          <div class="row"><div class="nm">theoretical ceiling</div><div class="track"><div class="fill ceil" data-w="100"></div></div><div class="val grad">100%</div></div>
+        </div>
+        <div class="cap">
+          % of the theoretical ceiling. In dollars: naive <b>$14.7k</b> · scripted <b>$46.1k</b> · oracle <b>$691k</b> · ceiling <b>$1.24M</b>.
+          The LTV game — acquire-then-coast, price for retention, don't over-spend a finite market — is deep skill no heuristic captures.
+        </div>
+      </div>
+
+      <div class="card rv d4">
+        <h3 style="margin-bottom:4px">It also separates frontier models</h3>
+        <div class="subtle" style="margin-bottom:14px">seed 42 demo · % of ceiling</div>
+        <div class="bars">
+          <div class="row" style="grid-template-columns:118px 1fr 54px"><div class="nm">GPT-5.5</div><div class="track" style="height:20px"><div class="fill mdl" data-w="47.7"></div></div><div class="val" style="font-size:13px">47.7%</div></div>
+          <div class="row" style="grid-template-columns:118px 1fr 54px"><div class="nm">GPT-5</div><div class="track" style="height:20px"><div class="fill mdl" data-w="28.9"></div></div><div class="val" style="font-size:13px">28.9%</div></div>
+          <div class="row" style="grid-template-columns:118px 1fr 54px"><div class="nm">Gemini 3.5</div><div class="track" style="height:20px"><div class="fill mdl" data-w="11.2"></div></div><div class="val" style="font-size:13px">11.2%</div></div>
+          <div class="row" style="grid-template-columns:118px 1fr 54px"><div class="nm">Qwen3-8B · RL</div><div class="track" style="height:20px"><div class="fill rl" data-w="5.0"></div></div><div class="val grad" style="font-size:13px">5.0%</div></div>
+          <div class="row" style="grid-template-columns:118px 1fr 54px"><div class="nm">Claude Sonnet</div><div class="track" style="height:20px"><div class="fill mdl" data-w="4.7"></div></div><div class="val" style="font-size:13px">4.7%</div></div>
+          <div class="row" style="grid-template-columns:118px 1fr 54px"><div class="nm">Opus 4.8</div><div class="track" style="height:20px"><div class="fill mdl" data-w="1.8"></div></div><div class="val" style="font-size:13px">1.8%</div></div>
+        </div>
+        <div class="cap" style="margin-top:12px">Our RL-trained <b>Qwen3-8B</b> leaps past its own base (<b>0.0%</b>) and edges Claude Sonnet — a 8B open model, after RL on SaaSBench.</div>
+      </div>
+    </div>
+  </div>
+  <div class="count">05 / 08</div>
+</section>
+
+<!-- ============ 6 · THE CURVE BENDS ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker rv"><span class="num">05</span><span class="bar"></span> The proof — real RL, not SFT</div>
+    <h2 class="rv d1">We trained an 8B model to run a better firm —<br>and it <span class="hl">generalized.</span></h2>
+
+    <div class="split" style="grid-template-columns:1fr 1fr; gap:24px; align-items:stretch; margin-top:6px">
+      <!-- training curve -->
+      <div class="svgwrap rv d2">
+        <div class="ttl">GRPO training curve — reward per epoch (in-distribution)</div>
+        <svg viewBox="0 0 340 210" width="100%" preserveAspectRatio="xMidYMid meet" aria-label="training curve">
+          <defs>
+            <linearGradient id="lg" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0" stop-color="#7c8bff"/><stop offset="1" stop-color="#38ef7d"/>
+            </linearGradient>
+            <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="rgba(124,139,255,.35)"/><stop offset="1" stop-color="rgba(56,239,125,0)"/>
+            </linearGradient>
+          </defs>
+          <!-- gridlines -->
+          <g stroke="#1e2130" stroke-width="1">
+            <line x1="40" y1="40" x2="330" y2="40"/><line x1="40" y1="105" x2="330" y2="105"/><line x1="40" y1="170" x2="330" y2="170"/>
+          </g>
+          <text x="34" y="44" fill="#6b7084" font-size="9" text-anchor="end">0.4</text>
+          <text x="34" y="174" fill="#6b7084" font-size="9" text-anchor="end">0.0</text>
+          <!-- area + line: pts (40,97.6)(185,54.9)(330,32.4) -->
+          <polygon class="curve-area" points="40,97.6 185,54.9 330,32.4 330,170 40,170" fill="url(#area)" opacity="0"/>
+          <polyline class="curve-line" points="40,97.6 185,54.9 330,32.4" fill="none" stroke="url(#lg)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <g class="curve-dots">
+            <circle cx="40" cy="97.6" r="5" fill="#7c8bff"/><text x="40" y="116" fill="#9aa0b0" font-size="11" text-anchor="middle" font-weight="700">.193</text>
+            <circle cx="185" cy="54.9" r="5" fill="#9bbef0"/><text x="185" y="44" fill="#9aa0b0" font-size="11" text-anchor="middle" font-weight="700">.307</text>
+            <circle cx="330" cy="32.4" r="6" fill="#38ef7d"/><text x="322" y="26" fill="#cfeede" font-size="12" text-anchor="end" font-weight="800">.367</text>
+          </g>
+          <text x="40" y="190" fill="#6b7084" font-size="9" text-anchor="middle">epoch 0</text>
+          <text x="185" y="190" fill="#6b7084" font-size="9" text-anchor="middle">epoch 1</text>
+          <text x="330" y="190" fill="#6b7084" font-size="9" text-anchor="end">epoch 2</text>
+        </svg>
+        <div class="cap" style="margin-top:6px">Monotonic: <b>0.193 → 0.367</b> (+91%). The policy learned to pick the right features within budget, target the biggest segments, and price for retention.</div>
+      </div>
+
+      <!-- held-out generalization -->
+      <div class="svgwrap rv d3" style="display:flex; flex-direction:column; justify-content:center">
+        <div class="ttl">Held-out generalization — 16 unseen worlds</div>
+        <div class="bars" style="margin-top:18px">
+          <div class="row" style="grid-template-columns:118px 1fr 66px">
+            <div class="nm">base 8B</div><div class="track" style="height:34px"><div class="fill scripted" data-w="24.5"></div></div><div class="val" style="font-size:16px">0.147</div>
+          </div>
+          <div class="row" style="grid-template-columns:118px 1fr 66px">
+            <div class="nm">after GRPO</div><div class="track" style="height:34px"><div class="fill rl" data-w="88"></div></div><div class="val grad" style="font-size:16px">0.529</div>
+          </div>
+        </div>
+        <div style="display:flex; align-items:baseline; gap:12px; margin-top:22px">
+          <div class="stat grad" style="font-size:clamp(40px,6vw,68px)">+260%</div>
+          <div class="statlbl" style="margin:0">on worlds it<br>never trained on</div>
+        </div>
+        <div class="cap" style="margin-top:14px">qwen3-8b (LoRA-GRPO) — it learned a transferable market-strategy skill, not memorized seeds.</div>
+      </div>
+    </div>
+
+    <div class="card rv d4" style="margin-top:18px; background:var(--grad-soft); border-color:var(--border2)">
+      <p style="font-size:15px; color:#e7e9f1; line-height:1.5">
+        <span class="grad" style="font-weight:800">Why this is RL, not SFT:</span>
+        GRPO on Fireworks managed RFT — the profit verifier <span class="ey">weights the gradient</span>
+        (8 candidates/prompt, KL-regularized), it doesn't just filter a dataset. The reward is our
+        deterministic, execution-based verifier — ungameable end to end.
+      </p>
+    </div>
+  </div>
+  <div class="count">06 / 08</div>
+</section>
+
+<!-- ============ 7 · WHERE IT GOES — MULTI-AGENT ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker rv"><span class="num">06</span><span class="bar"></span> Where it goes — same reward, more agents</div>
+    <h2 class="rv d1">One founder today.<br>A <span class="hl">whole company</span> next.</h2>
+    <p class="lede rv d2" style="margin-bottom:24px">
+      The hard part of a company isn't one genius — it's a <span class="ey">team that coordinates</span>.
+      The same execution-based profit reward extends straight to multi-agent: split the firm into roles
+      that each see only their slice and must <span class="grad">communicate to win</span>.
+      <span class="subtle">Designed &amp; spec'd — Phase&nbsp;D in the repo.</span>
+    </p>
+
+    <div class="grid g4 rv d3">
+      <div class="card"><h3><span class="ic">🛠️</span> Builder</h3><p>Picks &amp; specs features. Knows what it built — and must tell the team.</p></div>
+      <div class="card"><h3><span class="ic">📣</span> Marketer</h3><p>Targets pains × channels, writes the ad copy, spends the budget.</p></div>
+      <div class="card"><h3><span class="ic">🏷️</span> Pricer</h3><p>Sets price for conversion vs churn — the lifetime-value lever.</p></div>
+      <div class="card"><h3><span class="ic">🧭</span> Coordinator</h3><p>Allocates budget, sets direction, commits the round.</p></div>
+    </div>
+
+    <div class="split rv d4" style="margin-top:18px; grid-template-columns:1fr 1fr; gap:18px">
+      <div class="card" style="background:var(--grad-soft); border-color:var(--border2)">
+        <h3 style="margin-bottom:9px">📉 A coordination tax — new skill, same rigor</h3>
+        <p>Each role sees a partial view. The Marketer must learn from the Builder's message which feature
+        exists — or it burns budget promoting nothing. We grade
+        <span class="grad">team profit vs a single-agent, full-info oracle</span>: the gap <em>is</em> the
+        cost of poor coordination. Still execution-based, still ungameable.</p>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:9px">🧠 One checkpoint, four roles</h3>
+        <p>Not four models — <span class="ey">one shared policy</span>, role-conditioned by prompt. Every
+        role-turn shares the team's profit reward; GRPO normalizes within each world's rollout group.
+        Parameter sharing — the only sane shape for cooperative LLM agents.</p>
+      </div>
+    </div>
+  </div>
+  <div class="count">07 / 08</div>
+</section>
+
+<!-- ============ 8 · SHIPPED + CLOSE ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker rv"><span class="num">07</span><span class="bar"></span> Shipped — runnable today</div>
+    <h2 class="rv d1">Deployed on HUD. <span class="hl">Run it now.</span></h2>
+
+    <div class="split rv d2" style="grid-template-columns:1fr 1fr; gap:18px; align-items:stretch">
+      <div class="card">
+        <h3><span class="ic">🚀</span> Live environment</h3>
+        <p style="margin-bottom:14px">The full env runs on the HUD platform with <span class="ey">6 MCP tools</span>.
+        Evaluate any frontier model — or our fine-tuned checkpoint — end to end.</p>
+        <div class="codeblock">
+<span class="c"># drive any model through the live env</span><br>
+hud eval tasks.py <span class="k">claude</span> \<br>
+&nbsp;&nbsp;--task-ids market_discovery_seed42
+        </div>
+      </div>
+      <div class="card">
+        <h3><span class="ic">🎬</span> Inspect every run</h3>
+        <p style="margin-bottom:14px">A <span class="ey">replay viewer</span> steps through any episode round-by-round — ad campaigns, features built, profit curve — with a model leaderboard. Plus a world explorer for the hidden market.</p>
+        <div class="chips">
+          <span class="chip g"><span class="dot"></span> /replay — step through runs</span>
+          <span class="chip"><span class="dot"></span> /world — explore the market</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="rv d3" style="margin-top:20px">
+      <div class="subtle" style="margin-bottom:9px; letter-spacing:.08em; text-transform:uppercase">Built on the sponsor stack</div>
+      <div class="chips">
+        <span class="chip gold"><span class="dot"></span> HUD — host + on-policy RL (hud.train)</span>
+        <span class="chip"><span class="dot"></span> Fireworks — inference + GRPO fine-tuning</span>
+        <span class="chip"><span class="dot"></span> OpenAI · Anthropic · Google — frontier leaderboard</span>
+      </div>
+    </div>
+
+    <div class="card rv d4" style="margin-top:22px; text-align:center; padding:30px 24px; background:var(--grad-soft); border-color:var(--border2)">
+      <p style="font-size:clamp(19px,2.6vw,30px); color:#fff; font-weight:800; line-height:1.25; letter-spacing:-.01em">
+        A benchmark where <span class="grad">"make the number go up"</span> means
+        <span class="grad">"build a better business."</span>
+      </p>
+      <p class="lede" style="margin:12px auto 0; max-width:48ch">Verifiable. Trainable. And far from solved.</p>
+    </div>
+  </div>
+  <div class="foot">
+    github.com/Bennyoooo/firmbench · hud.ai/environments/169eeeae · /replay · /world
+  </div>
+  <div class="count">08 / 08</div>
+</section>
+
+</div>
+
+<script>
+try{
+const deck = document.getElementById('deck');
+const slides = [...document.querySelectorAll('.slide')];
+const dotsEl = document.getElementById('dots');
+const progress = document.getElementById('progress');
+
+// build nav dots
+slides.forEach((s,i)=>{
+  const b=document.createElement('button'); b.className='b'+(i===0?' on':''); b.setAttribute('aria-label','slide '+(i+1));
+  b.onclick=()=>s.scrollIntoView({behavior:'smooth'});
+  dotsEl.appendChild(b);
+});
+const dots=[...dotsEl.children];
+
+// reveal + active-dot + progress via IntersectionObserver
+const io=new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      const i=slides.indexOf(e.target);
+      dots.forEach((d,j)=>d.classList.toggle('on',j===i));
+      progress.style.width=((i)/(slides.length-1)*100)+'%';
+      e.target.querySelectorAll('.rv').forEach(el=>el.classList.add('in'));
+      e.target.querySelectorAll('.fill').forEach(f=>{ if(f.dataset.w) f.style.width=f.dataset.w+'%'; });
+      // animate the curve line draw
+      const line=e.target.querySelector('.curve-line');
+      if(line && !line.dataset.done){
+        const len=line.getTotalLength(); line.style.strokeDasharray=len; line.style.strokeDashoffset=len;
+        line.getBoundingClientRect();
+        line.style.transition='stroke-dashoffset 1.3s ease .15s'; line.style.strokeDashoffset=0; line.dataset.done=1;
+        const area=e.target.querySelector('.curve-area'); if(area){area.style.transition='opacity 1s ease .6s'; area.style.opacity=1;}
+        const dts=e.target.querySelector('.curve-dots'); if(dts){dts.style.transition='opacity .6s ease .8s'; dts.style.opacity=0; dts.getBoundingClientRect(); dts.style.opacity=1;}
+      }
+    }
+  });
+},{threshold:.55});
+slides.forEach(s=>io.observe(s));
+
+// keyboard nav
+let idx=0;
+function go(n){ idx=Math.max(0,Math.min(slides.length-1,n)); slides[idx].scrollIntoView({behavior:'smooth'}); }
+function current(){ const st=deck.scrollTop; return Math.round(st/window.innerHeight); }
+window.addEventListener('keydown',(e)=>{
+  if(['ArrowDown','PageDown',' '].includes(e.key)){ e.preventDefault(); go(current()+1); }
+  else if(['ArrowUp','PageUp'].includes(e.key)){ e.preventDefault(); go(current()-1); }
+  else if(e.key==='Home'){ e.preventDefault(); go(0); }
+  else if(e.key==='End'){ e.preventDefault(); go(slides.length-1); }
+});
+}catch(err){
+  /* failsafe: if anything throws, reveal all content so the deck is never blank */
+  document.querySelectorAll('.rv').forEach(el=>el.classList.add('in'));
+  document.querySelectorAll('.fill').forEach(f=>{ if(f.dataset.w) f.style.width=f.dataset.w+'%'; });
+  var ln=document.querySelector('.curve-line'); if(ln){ ln.style.strokeDashoffset=0; }
+}
+</script>
+</body>
+</html>

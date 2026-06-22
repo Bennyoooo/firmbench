@@ -1,7 +1,7 @@
-# FirmBench RL — Results: the curve bends
+# SaaSBench RL — Results: the curve bends
 
 **Real reinforcement learning (GRPO), not SFT.** A small open model was fine-tuned with
-GRPO on Fireworks against FirmBench's profit reward, and its reward rose monotonically
+GRPO on Fireworks against SaaSBench's profit reward, and its reward rose monotonically
 across training epochs.
 
 ## The learning curve (GRPO, oracle-normalized profit reward)
@@ -21,7 +21,7 @@ budget, target the high-audience pains, price for retention).
 
 ## Why this is RL, not SFT
 
-- Reward (FirmBench profit vs oracle) **weights the gradient** via GRPO advantages —
+- Reward (SaaSBench profit vs oracle) **weights the gradient** via GRPO advantages —
   it does not merely filter a supervised dataset.
 - Run on Fireworks managed RFT (`reinforcement-fine-tuning-job`, loss method GRPO,
   8 response candidates/prompt, KL-regularized).

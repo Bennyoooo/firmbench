@@ -1,6 +1,6 @@
 # Running `hud eval` with the Fireworks fine-tuned checkpoint
 
-The FirmBench HUD environment (`env.py` / `tasks.py`) can be evaluated by **any
+The SaaSBench HUD environment (`env.py` / `tasks.py`) can be evaluated by **any
 Fireworks-served model** — base or our GRPO fine-tune — through HUD's
 `openai_compatible` agent pointed at the Fireworks inference API. **Verified working**:
 `hud eval` runs the MCP env locally and drives the Fireworks model, which calls the

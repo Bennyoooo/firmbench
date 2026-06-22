@@ -1,7 +1,8 @@
-# FirmBench
+# SaaSBench
 
-A verifiable RL environment for **autonomous business agents** — built for the
-**HUD Frontier/RSI RL Environments Hackathon** (HUD W25 x YC).
+A verifiable RL environment where an agent **runs a SaaS against a simulated
+population of real-world users** — built for the **HUD Frontier/RSI RL
+Environments Hackathon** (HUD W25 x YC).
 
 One agent runs a simulated firm: it must reverse-engineer a hidden, persona-structured
 demand population by running experiments, then build the right features, target the right
@@ -128,7 +129,7 @@ Dockerfile.hud    deployable image
 ## How it works
 
 **The hidden world** (randomized per episode): 8 pain points, 8 features, a hidden
-`solves: pain → feature` mapping, and ~5,000 users drawn from hidden **segments**
+`solves: pain → feature` mapping, and ~500,000 users drawn from hidden **segments**
 (personas). Each segment clusters certain pains and has its own willingness-to-pay, price
 elasticity, preferred marketing **channel**, quality bar, and churn rate — with per-user
 noise on top (hybrid population). Every latent is behind a `Config` flag: `Config()` is
